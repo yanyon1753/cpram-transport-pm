@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -20,7 +20,7 @@ const TEMP_META = {
   chiller: { label: "แช่เย็น 0-4°C", icon: Droplet, color: "#5B9FE0" },
   ambient: { label: "อุณหภูมิห้อง", icon: Sun, color: "#E0A85B" },
 };
-const REPAIR_TYPES = ["เครื่องยนต์", "ระบบทำความเย็น", "ระบบไฟฟ้า", "เบรก", "ยาง", "ตัวถัง", "อื่นๆ"];
+const REPAIR_TYPES = ["เครื่องยนต์", "ระบบทำความเย็น", "ระบบไฟฟ้า", "เบรก", "ยาง", "แบตเตอรี่", "ตัวถัง", "อื่นๆ"];
 const DRIVER_LICENSE_TYPES = ["ท.2", "ท.3", "ท.4"];
 const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
@@ -30,15 +30,42 @@ const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.
 
 function daysBetween(a, b) { return Math.round((b - a) / (1000 * 60 * 60 * 24)); }
 function addDays(dateStr, n) { const d = new Date(dateStr); d.setDate(d.getDate() + n); return d; }
-function fmtDate(d) { const date = typeof d === "string" ? new Date(d) : d; return `${date.getDate()} ${THAI_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`; }
+function fmtDate(d) { if (!d) return "-"; const date = typeof d === "string" ? new Date(d) : d; return `${date.getDate()} ${THAI_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`; }
 function fmtMoney(n) { return Number(n || 0).toLocaleString("th-TH"); }
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+// คำนวณสถานะ "ครบรอบ" จากวันที่ล่าสุด + จำนวนวันต่อรอบ (ใช้กับ PM / คาลิเบรท)
+function computeDue(lastDateStr, intervalDays) {
+  if (!lastDateStr) return { next: null, daysLeft: null, status: "unknown" };
+  const next = addDays(lastDateStr, intervalDays || 0);
+  const daysLeft = daysBetween(TODAY, next);
+  let status = "ok";
+  if (daysLeft < 0) status = "overdue";
+  else if (daysLeft <= 7) status = "soon";
+  return { next, daysLeft, status };
+}
+
+// คำนวณสถานะ "วันหมดอายุ" ตรงๆ (ใช้กับภาษี/พรบ)
+function computeExpiry(dateStr, warnDays = 30) {
+  if (!dateStr) return { daysLeft: null, status: "unknown" };
+  const d = new Date(dateStr);
+  const daysLeft = daysBetween(TODAY, d);
+  let status = "ok";
+  if (daysLeft < 0) status = "overdue";
+  else if (daysLeft <= warnDays) status = "soon";
+  return { daysLeft, status };
+}
+
 function computeVehicle(v) {
-  const nextPM = addDays(v.last_pm, v.pm_interval);
-  const daysLeft = daysBetween(TODAY, nextPM);
-  let pmStatus = "ok";
-  if (daysLeft < 0) pmStatus = "overdue";
-  else if (daysLeft <= 7) pmStatus = "soon";
-  return { ...v, nextPM, daysLeft, pmStatus };
+  const pm = computeDue(v.last_pm, v.pm_interval);
+  const coolingPm = computeDue(v.cooling_pm_last, v.cooling_pm_interval);
+  const calibration = computeDue(v.calibration_last, v.calibration_interval);
+  const tax = computeExpiry(v.tax_expiry, 30);
+  return {
+    ...v,
+    pm, coolingPm, calibration, tax,
+    nextPM: pm.next, daysLeft: pm.daysLeft, pmStatus: pm.status,
+  };
 }
 
 async function fetchVehicles() {
@@ -94,12 +121,16 @@ function StatusChip({ status, reason }) {
   );
 }
 
-function PMChip({ pmStatus, daysLeft }) {
+// ใช้ได้กับทุกประเภทกำหนดการ (PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี)
+function DueChip({ status, daysLeft }) {
+  if (status === "unknown" || daysLeft === null || daysLeft === undefined) {
+    return <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: "#8FA0B31E", color: "#8FA0B3", border: "1px solid #8FA0B355" }}>ไม่มีข้อมูล</span>;
+  }
   const conf = {
     overdue: { color: "#E4584F", label: `เกินกำหนด ${Math.abs(daysLeft)} วัน` },
     soon: { color: "#F0A94E", label: `ใกล้ครบกำหนด (${daysLeft} วัน)` },
     ok: { color: "#8FA0B3", label: `อีก ${daysLeft} วัน` },
-  }[pmStatus];
+  }[status];
   return (
     <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: `${conf.color}1E`, color: conf.color, border: `1px solid ${conf.color}55` }}>
       <Clock3 size={13} />{conf.label}
@@ -123,6 +154,14 @@ function SectionTitle({ icon: Icon, children, sub }) {
   );
 }
 
+function SubHeading({ children }) {
+  return (
+    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-frost)", textTransform: "uppercase", letterSpacing: 0.5, margin: "4px 0 2px" }}>
+      {children}
+    </div>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <label className="flex flex-col gap-1">
@@ -135,7 +174,7 @@ function Field({ label, children }) {
 const inputStyle = { background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", color: "var(--text)", fontSize: 13, outline: "none", width: "100%" };
 const iconBtnStyle = { color: "var(--text-muted)", padding: 4, borderRadius: 6, cursor: "pointer" };
 
-function ModalShell({ title, onClose, children, width = 520 }) {
+function ModalShell({ title, onClose, children, width = 560 }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: width, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
@@ -169,14 +208,33 @@ function ConfirmDelete({ label, onConfirm, onCancel }) {
 }
 
 /* ---------------------------------------------------------------
-   VEHICLE FORM (add + edit)
+   VEHICLE FORM (add + edit) - ครบทุกข้อมูล
 ---------------------------------------------------------------- */
 
 function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
   const isEdit = !!initial;
-  const [form, setForm] = useState(() => initial ? { ...initial, year: String(initial.year || ""), pm_interval: String(initial.pm_interval) } : {
+  const [form, setForm] = useState(() => initial ? {
+    ...initial,
+    year: String(initial.year || ""),
+    pm_interval: String(initial.pm_interval),
+    wheels: String(initial.wheels ?? 6),
+    length_m: String(initial.length_m ?? ""),
+    fuel_tank_liters: String(initial.fuel_tank_liters ?? ""),
+    cooling_pm_interval: String(initial.cooling_pm_interval ?? 90),
+    calibration_interval: String(initial.calibration_interval ?? 180),
+    cooling_pm_last: initial.cooling_pm_last || todayISO(),
+    calibration_last: initial.calibration_last || todayISO(),
+    tire_changed: initial.tire_changed || todayISO(),
+    battery_changed: initial.battery_changed || todayISO(),
+    tax_expiry: initial.tax_expiry || todayISO(),
+    cooling_brand: initial.cooling_brand || "",
+  } : {
     id: "", brand: "", model: "", year: "2024", temp: "chiller",
-    status: "ready", reason: "", last_pm: new Date().toISOString().slice(0, 10), pm_interval: "90", driver: "",
+    status: "ready", reason: "", last_pm: todayISO(), pm_interval: "90", driver: "",
+    cooling_brand: "", wheels: "6", length_m: "6", fuel_tank_liters: "150",
+    tax_expiry: todayISO(), tire_changed: todayISO(), battery_changed: todayISO(),
+    cooling_pm_last: todayISO(), cooling_pm_interval: "90",
+    calibration_last: todayISO(), calibration_interval: "180",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -189,7 +247,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     const otherPlates = existingPlates.filter((p) => !isEdit || p !== initial.id);
     if (otherPlates.includes(plate)) return setError("มีทะเบียนนี้อยู่แล้วในระบบ");
     if (!form.brand.trim() || !form.model.trim()) return setError("กรุณากรอกยี่ห้อและรุ่น");
-    if (!form.last_pm) return setError("กรุณาเลือกวันที่ PM ล่าสุด");
+    if (!form.last_pm) return setError("กรุณาเลือกวันที่ PM เครื่องยนต์ล่าสุด");
 
     setSaving(true);
     setError("");
@@ -200,6 +258,17 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
         year: Number(form.year) || new Date().getFullYear(), temp: form.temp, status: form.status,
         reason: form.status === "not_ready" ? form.reason.trim() : "",
         last_pm: form.last_pm, pm_interval: Number(form.pm_interval) || 90, driver: form.driver.trim() || "-",
+        cooling_brand: form.cooling_brand.trim(),
+        wheels: Number(form.wheels) || 0,
+        length_m: Number(form.length_m) || 0,
+        fuel_tank_liters: Number(form.fuel_tank_liters) || 0,
+        tax_expiry: form.tax_expiry || null,
+        tire_changed: form.tire_changed || null,
+        battery_changed: form.battery_changed || null,
+        cooling_pm_last: form.cooling_pm_last || null,
+        cooling_pm_interval: Number(form.cooling_pm_interval) || 90,
+        calibration_last: form.calibration_last || null,
+        calibration_interval: Number(form.calibration_interval) || 180,
       });
       onClose();
     } catch (err) {
@@ -212,6 +281,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
   return (
     <ModalShell title={isEdit ? "แก้ไขข้อมูลรถ" : "เพิ่มรถคันใหม่"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <SubHeading>ข้อมูลทั่วไป</SubHeading>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ทะเบียนรถ *"><input style={inputStyle} placeholder="เช่น 70-1234" value={form.id} onChange={(e) => update("id", e.target.value)} /></Field>
           <Field label="คนขับประจำ"><input style={inputStyle} placeholder="ชื่อ-นามสกุล" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
@@ -222,6 +292,19 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ปีรถ"><input style={inputStyle} type="number" value={form.year} onChange={(e) => update("year", e.target.value)} /></Field>
+          <Field label="สถานะรถ">
+            <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
+              <option value="ready">พร้อมใช้งาน</option>
+              <option value="not_ready">ไม่พร้อมใช้งาน</option>
+            </select>
+          </Field>
+        </div>
+        {form.status === "not_ready" && (
+          <Field label="เหตุผลที่ไม่พร้อมใช้งาน"><input style={inputStyle} placeholder="เช่น รอซ่อมเครื่องยนต์" value={form.reason} onChange={(e) => update("reason", e.target.value)} /></Field>
+        )}
+
+        <SubHeading>สเปครถ / ระบบทำความเย็น</SubHeading>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="ประเภทตู้บรรทุก">
             <select style={inputStyle} value={form.temp} onChange={(e) => update("temp", e.target.value)}>
               <option value="freezer">ห้องเย็น -18°C</option>
@@ -229,22 +312,33 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
               <option value="ambient">อุณหภูมิห้อง</option>
             </select>
           </Field>
+          <Field label="ยี่ห้อเครื่องทำความเย็น"><input style={inputStyle} placeholder="เช่น Thermo King, Carrier" value={form.cooling_brand} onChange={(e) => update("cooling_brand", e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="จำนวนล้อ"><input style={inputStyle} type="number" value={form.wheels} onChange={(e) => update("wheels", e.target.value)} /></Field>
+          <Field label="ความยาว (เมตร)"><input style={inputStyle} type="number" step="0.1" value={form.length_m} onChange={(e) => update("length_m", e.target.value)} /></Field>
+          <Field label="ถังน้ำมัน (ลิตร)"><input style={inputStyle} type="number" value={form.fuel_tank_liters} onChange={(e) => update("fuel_tank_liters", e.target.value)} /></Field>
+        </div>
+
+        <SubHeading>กำหนดการบำรุงรักษา</SubHeading>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="PM เครื่องยนต์ล่าสุด *"><input style={inputStyle} type="date" value={form.last_pm} onChange={(e) => update("last_pm", e.target.value)} /></Field>
+          <Field label="รอบ PM เครื่องยนต์ (วัน)"><input style={inputStyle} type="number" value={form.pm_interval} onChange={(e) => update("pm_interval", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="สถานะรถ">
-            <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
-              <option value="ready">พร้อมใช้งาน</option>
-              <option value="not_ready">ไม่พร้อมใช้งาน</option>
-            </select>
-          </Field>
-          {form.status === "not_ready" && (
-            <Field label="เหตุผลที่ไม่พร้อมใช้งาน"><input style={inputStyle} placeholder="เช่น รอซ่อมเครื่องยนต์" value={form.reason} onChange={(e) => update("reason", e.target.value)} /></Field>
-          )}
+          <Field label="PM ตู้เย็นล่าสุด"><input style={inputStyle} type="date" value={form.cooling_pm_last} onChange={(e) => update("cooling_pm_last", e.target.value)} /></Field>
+          <Field label="รอบ PM ตู้เย็น (วัน)"><input style={inputStyle} type="number" value={form.cooling_pm_interval} onChange={(e) => update("cooling_pm_interval", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="วันที่ PM ล่าสุด *"><input style={inputStyle} type="date" value={form.last_pm} onChange={(e) => update("last_pm", e.target.value)} /></Field>
-          <Field label="รอบ PM (วัน)"><input style={inputStyle} type="number" value={form.pm_interval} onChange={(e) => update("pm_interval", e.target.value)} /></Field>
+          <Field label="คาลิเบรทตู้เย็นล่าสุด"><input style={inputStyle} type="date" value={form.calibration_last} onChange={(e) => update("calibration_last", e.target.value)} /></Field>
+          <Field label="รอบคาลิเบรท (วัน)"><input style={inputStyle} type="number" value={form.calibration_interval} onChange={(e) => update("calibration_interval", e.target.value)} /></Field>
         </div>
+        <Field label="วันหมดอายุภาษี/พ.ร.บ."><input style={inputStyle} type="date" value={form.tax_expiry} onChange={(e) => update("tax_expiry", e.target.value)} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="เปลี่ยนยางล่าสุด"><input style={inputStyle} type="date" value={form.tire_changed} onChange={(e) => update("tire_changed", e.target.value)} /></Field>
+          <Field label="เปลี่ยนแบตเตอรี่ล่าสุด"><input style={inputStyle} type="date" value={form.battery_changed} onChange={(e) => update("battery_changed", e.target.value)} /></Field>
+        </div>
+
         {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
@@ -264,7 +358,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
 function RepairFormModal({ plate, initial, onClose, onSave }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(() => initial ? { ...initial, cost: String(initial.cost) } : {
-    date: new Date().toISOString().slice(0, 10), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น",
+    date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -302,7 +396,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
             </select>
           </Field>
         </div>
-        <Field label="รายละเอียดงานซ่อม *"><input style={inputStyle} placeholder="เช่น เปลี่ยนผ้าเบรกหน้า" value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
+        <Field label="รายละเอียดงานซ่อม (ทำอะไรไปบ้าง) *"><input style={inputStyle} placeholder="เช่น เปลี่ยนผ้าเบรกหน้า" value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ค่าใช้จ่าย (บาท)"><input style={inputStyle} type="number" value={form.cost} onChange={(e) => update("cost", e.target.value)} /></Field>
           <Field label="สถานะงาน">
@@ -312,7 +406,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
             </select>
           </Field>
         </div>
-        <Field label="อู่ / ศูนย์บริการ"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
+        <Field label="อู่ / ศูนย์บริการ (ทำที่ไหน)"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
         {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
@@ -397,13 +491,25 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
 }
 
 /* ---------------------------------------------------------------
-   VIEWS
+   DASHBOARD
 ---------------------------------------------------------------- */
 
 function Dashboard({ vehicles, repairs }) {
   const readyCount = vehicles.filter((v) => v.status === "ready").length;
   const notReadyCount = vehicles.length - readyCount;
-  const pmSoon = vehicles.filter((v) => v.pmStatus !== "ok").sort((a, b) => a.daysLeft - b.daysLeft);
+
+  // รวมรายการแจ้งเตือนทุกประเภทเข้าด้วยกัน: PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี
+  const alerts = useMemo(() => {
+    const list = [];
+    vehicles.forEach((v) => {
+      if (v.pm.status === "soon" || v.pm.status === "overdue") list.push({ plate: v.id, brand: v.brand, model: v.model, label: "PM เครื่องยนต์", status: v.pm.status, daysLeft: v.pm.daysLeft });
+      if (v.coolingPm.status === "soon" || v.coolingPm.status === "overdue") list.push({ plate: v.id, brand: v.brand, model: v.model, label: "PM ตู้เย็น", status: v.coolingPm.status, daysLeft: v.coolingPm.daysLeft });
+      if (v.calibration.status === "soon" || v.calibration.status === "overdue") list.push({ plate: v.id, brand: v.brand, model: v.model, label: "คาลิเบรทตู้เย็น", status: v.calibration.status, daysLeft: v.calibration.daysLeft });
+      if (v.tax.status === "soon" || v.tax.status === "overdue") list.push({ plate: v.id, brand: v.brand, model: v.model, label: "ภาษี/พ.ร.บ.", status: v.tax.status, daysLeft: v.tax.daysLeft });
+    });
+    return list.sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [vehicles]);
+
   const recentRepairs = [...repairs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
 
   const statusData = [
@@ -424,16 +530,19 @@ function Dashboard({ vehicles, repairs }) {
     });
   }, [repairs]);
 
+  const totalSpent = repairs.reduce((s, r) => s + Number(r.cost || 0), 0);
+
   const kpis = [
     { label: "รถทั้งหมด", value: vehicles.length, icon: Truck, color: "#45B8C8" },
     { label: "พร้อมใช้งาน", value: readyCount, icon: CheckCircle2, color: "#5FBE84" },
     { label: "ไม่พร้อมใช้งาน", value: notReadyCount, icon: AlertTriangle, color: "#E4584F" },
-    { label: "ใกล้/เกินกำหนด PM", value: pmSoon.length, icon: Clock3, color: "#F0A94E" },
+    { label: "รายการต้องดำเนินการ", value: alerts.length, icon: Clock3, color: "#F0A94E" },
   ];
 
   return (
     <div>
       <SectionTitle icon={Gauge} sub="ภาพรวมสถานะรถบรรทุกควบคุมอุณหภูมิทั้งหมด ณ วันนี้">แดชบอร์ดภาพรวม</SectionTitle>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {kpis.map((k) => (
           <Card key={k.label} style={{ padding: 18 }}>
@@ -447,7 +556,7 @@ function Dashboard({ vehicles, repairs }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>สถานะความพร้อมของรถ</div>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={160}>
             <BarChart data={statusData} layout="vertical" margin={{ left: 0, right: 20 }}>
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#8FA0B3", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -455,6 +564,7 @@ function Dashboard({ vehicles, repairs }) {
               <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>{statusData.map((d, i) => <Cell key={i} fill={d.color} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>ค่าใช้จ่ายซ่อมบำรุงสะสมทั้งหมด: <span style={{ color: "var(--accent-frost)", fontWeight: 700 }}>{fmtMoney(totalSpent)} บาท</span></div>
         </Card>
 
         <Card style={{ padding: 20, gridColumn: "span 2 / span 2" }}>
@@ -473,13 +583,19 @@ function Dashboard({ vehicles, repairs }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={16} style={{ color: "#F0A94E" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>รถที่ใกล้/เกินกำหนด PM</span></div>
-          <div className="flex flex-col gap-2">
-            {pmSoon.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรถที่ใกล้ครบกำหนด PM</p>}
-            {pmSoon.map((v) => (
-              <div key={v.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
-                <div className="flex items-center gap-3"><PlateBadge plate={v.id} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{v.brand} {v.model}</span></div>
-                <PMChip pmStatus={v.pmStatus} daysLeft={v.daysLeft} />
+          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={16} style={{ color: "#F0A94E" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>รายการที่ใกล้/เกินกำหนด ({alerts.length})</span></div>
+          <div className="flex flex-col gap-2" style={{ maxHeight: 320, overflowY: "auto" }}>
+            {alerts.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรายการที่ต้องดำเนินการตอนนี้</p>}
+            {alerts.map((a, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
+                <div className="flex items-center gap-3">
+                  <PlateBadge plate={a.plate} />
+                  <div>
+                    <div style={{ fontSize: 12, color: "var(--text)" }}>{a.label}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{a.brand} {a.model}</div>
+                  </div>
+                </div>
+                <DueChip status={a.status} daysLeft={a.daysLeft} />
               </div>
             ))}
           </div>
@@ -505,6 +621,10 @@ function Dashboard({ vehicles, repairs }) {
   );
 }
 
+/* ---------------------------------------------------------------
+   VEHICLES VIEW
+---------------------------------------------------------------- */
+
 function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepair, onUpdateRepair, onDeleteRepair }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
@@ -516,6 +636,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
   const filtered = vehicles.filter((v) => v.id.includes(query) || v.brand.toLowerCase().includes(query.toLowerCase()) || v.model.toLowerCase().includes(query.toLowerCase()));
   const selVehicle = vehicles.find((v) => v.id === selected);
   const selRepairs = selVehicle ? repairs.filter((r) => r.plate === selVehicle.id).sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
+  const selTotalCost = selRepairs.reduce((s, r) => s + Number(r.cost || 0), 0);
 
   const groupedByMonth = useMemo(() => {
     const map = {};
@@ -531,7 +652,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <SectionTitle icon={Truck} sub="รายละเอียดรถบรรทุกทุกคัน แก้ไข เพิ่ม ลบ พร้อมประวัติการซ่อมรายทะเบียน">รถทั้งหมด</SectionTitle>
+        <SectionTitle icon={Truck} sub="สเปครถ กำหนดการบำรุงรักษา และประวัติการซ่อมรายทะเบียน">รถทั้งหมด</SectionTitle>
         <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#0F1620", fontSize: 13, fontWeight: 700, height: 38 }}>
           <Plus size={16} />เพิ่มรถคันใหม่
         </button>
@@ -549,7 +670,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "สถานะรถ", "กำหนด PM ถัดไป", "คนขับ", "จัดการ", ""].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "สถานะรถ", "PM เครื่องยนต์", "คนขับ", "จัดการ", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -561,7 +682,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.brand} {v.model} <span style={{ color: "var(--text-muted)" }}>'{String(v.year).slice(2)}</span></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><TempChip temp={v.temp} /></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><StatusChip status={v.status} reason={v.reason} /></td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><PMChip pmStatus={v.pmStatus} daysLeft={v.daysLeft} /></td>
+                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.driver}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <div className="flex items-center gap-1">
@@ -601,11 +722,43 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
             </div>
           )}
 
+          <SubHeading>สเปครถ</SubHeading>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ยี่ห้อเครื่องเย็น</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.cooling_brand || "-"}</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>จำนวนล้อ</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.wheels || "-"} ล้อ</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ความยาว</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.length_m || "-"} ม.</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ถังน้ำมัน</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.fuel_tank_liters || "-"} ลิตร</div></div>
+          </div>
+
+          <SubHeading>กำหนดการบำรุงรักษา</SubHeading>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>PM เครื่องยนต์</div>
+              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.pm.next)}</div>
+              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.pm.status} daysLeft={selVehicle.pm.daysLeft} /></div>
+            </div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>PM ตู้เย็น</div>
+              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.coolingPm.next)}</div>
+              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.coolingPm.status} daysLeft={selVehicle.coolingPm.daysLeft} /></div>
+            </div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>คาลิเบรทตู้เย็น</div>
+              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.calibration.next)}</div>
+              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.calibration.status} daysLeft={selVehicle.calibration.daysLeft} /></div>
+            </div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ภาษี/พ.ร.บ.</div>
+              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.tax_expiry)}</div>
+              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.tax.status} daysLeft={selVehicle.tax.daysLeft} /></div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>PM ล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.last_pm)}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>PM ถัดไป</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.nextPM)}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>รอบ PM</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>ทุก {selVehicle.pm_interval} วัน</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>เปลี่ยนยางล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.tire_changed)}</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>เปลี่ยนแบตล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.battery_changed)}</div></div>
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>คนขับประจำ</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.driver}</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "rgba(69,184,200,0.1)", border: "1px solid #45B8C855" }}><div style={{ fontSize: 11, color: "var(--accent-frost)" }}>ค่าซ่อมสะสมทั้งหมด</div><div style={{ fontSize: 15, color: "var(--accent-frost)", fontWeight: 700, marginTop: 2 }}>{fmtMoney(selTotalCost)} บ.</div></div>
           </div>
 
           <div className="flex items-center justify-between mb-3">
@@ -684,35 +837,64 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
   );
 }
 
-function PMScheduleView({ vehicles }) {
-  const sorted = [...vehicles].sort((a, b) => a.daysLeft - b.daysLeft);
+/* ---------------------------------------------------------------
+   MAINTENANCE VIEW (PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี)
+---------------------------------------------------------------- */
+
+function MaintenanceView({ vehicles }) {
+  const rows = useMemo(() => {
+    return [...vehicles].map((v) => {
+      const worst = Math.min(
+        v.pm.daysLeft ?? Infinity,
+        v.coolingPm.daysLeft ?? Infinity,
+        v.calibration.daysLeft ?? Infinity,
+        v.tax.daysLeft ?? Infinity
+      );
+      return { ...v, worst };
+    }).sort((a, b) => a.worst - b.worst);
+  }, [vehicles]);
+
   return (
     <div>
-      <SectionTitle icon={Calendar} sub="กำหนดการบำรุงรักษาตามระยะ (PM) ของรถทุกคัน เรียงตามวันที่ใกล้ครบกำหนดที่สุด">กำหนดการ PM</SectionTitle>
-      <div className="flex items-center gap-4 mb-4" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+      <SectionTitle icon={Calendar} sub="รวม PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรทตู้เย็น / ภาษี-พ.ร.บ. ของรถทุกคันไว้ที่เดียว เรียงตามรายการที่ใกล้ครบกำหนดที่สุด">
+        กำหนดการบำรุงรักษา
+      </SectionTitle>
+      <div className="flex items-center gap-4 mb-4 flex-wrap" style={{ fontSize: 12, color: "var(--text-muted)" }}>
         <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#E4584F", display: "inline-block" }} /> เกินกำหนด</span>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#F0A94E", display: "inline-block" }} /> ใกล้ครบกำหนด (≤ 7 วัน)</span>
+        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#F0A94E", display: "inline-block" }} /> ใกล้ครบกำหนด</span>
         <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#8FA0B3", display: "inline-block" }} /> ปกติ</span>
       </div>
       <Card style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "PM ล่าสุด", "รอบ PM", "PM ถัดไป", "สถานะ"].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น", "ภาษี/พ.ร.บ."].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {sorted.map((v) => (
+              {rows.map((v) => (
                 <tr key={v.id} style={{ borderTop: "1px solid var(--border)" }}>
                   <td style={{ padding: "10px 14px" }}><PlateBadge plate={v.id} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{v.brand} {v.model}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.last_pm)}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>ทุก {v.pm_interval} วัน</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.nextPM)}</td>
-                  <td style={{ padding: "10px 14px" }}><PMChip pmStatus={v.pmStatus} daysLeft={v.daysLeft} /></td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.pm.next)}</div>
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <DueChip status={v.coolingPm.status} daysLeft={v.coolingPm.daysLeft} />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.coolingPm.next)}</div>
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <DueChip status={v.calibration.status} daysLeft={v.calibration.daysLeft} />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.calibration.next)}</div>
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.tax_expiry)}</div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -722,6 +904,10 @@ function PMScheduleView({ vehicles }) {
     </div>
   );
 }
+
+/* ---------------------------------------------------------------
+   DRIVERS VIEW
+---------------------------------------------------------------- */
 
 function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
   const [formState, setFormState] = useState(null);
@@ -797,7 +983,7 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
 const TABS = [
   { key: "dashboard", label: "แดชบอร์ด", icon: Gauge },
   { key: "vehicles", label: "รถทั้งหมด", icon: Truck },
-  { key: "pm", label: "กำหนดการ PM", icon: Calendar },
+  { key: "maintenance", label: "บำรุงรักษา", icon: Settings2 },
   { key: "drivers", label: "พนักงานขับรถ", icon: User },
 ];
 
@@ -899,11 +1085,11 @@ export default function FleetApp({ user }) {
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center rounded-lg" style={{ width: 38, height: 38, background: "rgba(69,184,200,0.15)" }}><Snowflake size={20} style={{ color: "var(--accent-frost)" }} /></div>
             <div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: 0.3 }}>CPRAM PM</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: 0.3 }}>CPRAM FLEET</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
             </div>
           </div>
-          <nav className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--surface-2)" }}>
+          <nav className="flex items-center gap-1 rounded-lg p-1 flex-wrap" style={{ background: "var(--surface-2)" }}>
             {TABS.map((t) => {
               const active = tab === t.key;
               return (
@@ -938,7 +1124,7 @@ export default function FleetApp({ user }) {
                 onAddRepair={handleAddRepair} onUpdateRepair={handleUpdateRepair} onDeleteRepair={handleDeleteRepair}
               />
             )}
-            {tab === "pm" && <PMScheduleView vehicles={computedVehicles} />}
+            {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
             )}
@@ -947,7 +1133,7 @@ export default function FleetApp({ user }) {
       </main>
 
       <footer className="max-w-7xl mx-auto px-5 py-6" style={{ color: "var(--text-muted)", fontSize: 12 }}>
-        ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM PM Management
+        ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM Fleet Management
       </footer>
     </div>
   );
