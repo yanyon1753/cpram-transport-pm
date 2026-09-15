@@ -15,7 +15,7 @@ const inputStyle = {
 
 function LogoMark({ size = 22 }) {
   return (
-    <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: "#FFFFFF", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
+    <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: "#FFFFFF", boxShadow: "0 2px 8px rgba(15,23,42,0.12)" }}>
       <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: size * 0.68, fontStyle: "italic", letterSpacing: -0.5 }}>
         <span style={{ color: "#E4432E" }}>cp</span><span style={{ color: "#4C9A3D" }}>ram</span>
       </span>
@@ -62,8 +62,8 @@ export default function Login() {
 
   return (
     <div style={{
-      "--bg": "#10151C", "--surface": "#1A222C", "--surface-2": "#212B37", "--border": "#2B3644",
-      "--text": "#E8EDF3", "--text-muted": "#8FA0B3", "--accent-frost": "#45B8C8",
+      "--bg": "#F4F6F9", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
+      "--text": "#1E293B", "--text-muted": "#64748B", "--accent-frost": "#0E8FA0",
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: 16, fontFamily: "'Inter', sans-serif",
     }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');`}</style>
@@ -80,13 +80,13 @@ export default function Login() {
           <div className="flex rounded-lg p-1 mb-5" style={{ background: "var(--surface-2)" }}>
             <button
               onClick={() => setMode("signin")}
-              style={{ flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, fontWeight: 600, background: mode === "signin" ? "var(--accent-frost)" : "transparent", color: mode === "signin" ? "#0F1620" : "var(--text-muted)" }}
+              style={{ flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, fontWeight: 600, background: mode === "signin" ? "var(--accent-frost)" : "transparent", color: mode === "signin" ? "#FFFFFF" : "var(--text-muted)" }}
             >
               เข้าสู่ระบบ
             </button>
             <button
               onClick={() => setMode("signup")}
-              style={{ flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, fontWeight: 600, background: mode === "signup" ? "var(--accent-frost)" : "transparent", color: mode === "signup" ? "#0F1620" : "var(--text-muted)" }}
+              style={{ flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, fontWeight: 600, background: mode === "signup" ? "var(--accent-frost)" : "transparent", color: mode === "signup" ? "#FFFFFF" : "var(--text-muted)" }}
             >
               สมัครใช้งานใหม่
             </button>
@@ -103,12 +103,12 @@ export default function Login() {
             </label>
 
             {error && (
-              <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>
+              <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>
                 {error}
               </div>
             )}
             {info && (
-              <div style={{ fontSize: 12, color: "#5FBE84", background: "rgba(95,190,132,0.1)", border: "1px solid #5FBE8455", borderRadius: 8, padding: "8px 10px" }}>
+              <div style={{ fontSize: 12, color: "#16A34A", background: "rgba(22,163,74,0.1)", border: "1px solid #16A34A55", borderRadius: 8, padding: "8px 10px" }}>
                 {info}
               </div>
             )}
@@ -116,7 +116,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 6, opacity: loading ? 0.6 : 1 }}
+              style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 6, opacity: loading ? 0.6 : 1 }}
             >
               {loading ? "กำลังดำเนินการ..." : mode === "signin" ? "เข้าสู่ระบบ" : "สมัครใช้งาน"}
             </button>
