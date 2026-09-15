@@ -1198,7 +1198,11 @@ export default function FleetApp({ user }) {
       <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(16,21,28,0.9)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
         <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg" style={{ width: 38, height: 38, background: "rgba(69,184,200,0.15)" }}><Snowflake size={20} style={{ color: "var(--accent-frost)" }} /></div>
+            <div className="flex items-center justify-center rounded-lg" style={{ width: 42, height: 42, background: "#FFFFFF", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 15, fontStyle: "italic", letterSpacing: -0.5 }}>
+                <span style={{ color: "#E4432E" }}>cp</span><span style={{ color: "#4C9A3D" }}>ram</span>
+              </span>
+            </div>
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: 0.3 }}>CPRAM TRANSPORT</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
@@ -1249,7 +1253,7 @@ export default function FleetApp({ user }) {
       </main>
 
       <footer className="max-w-7xl mx-auto px-5 py-6" style={{ color: "var(--text-muted)", fontSize: 12 }}>
-        ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM TRANSPORT Management
+        ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM Fleet Management
       </footer>
     </div>
   );
