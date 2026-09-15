@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { Snowflake } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
 const inputStyle = {
@@ -13,6 +12,16 @@ const inputStyle = {
   outline: "none",
   width: "100%",
 };
+
+function LogoMark({ size = 22 }) {
+  return (
+    <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: "#FFFFFF", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
+      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: size * 0.68, fontStyle: "italic", letterSpacing: -0.5 }}>
+        <span style={{ color: "#E4432E" }}>cp</span><span style={{ color: "#4C9A3D" }}>ram</span>
+      </span>
+    </div>
+  );
+}
 
 export default function Login() {
   const router = useRouter();
@@ -52,14 +61,17 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: 16 }}>
+    <div style={{
+      "--bg": "#10151C", "--surface": "#1A222C", "--surface-2": "#212B37", "--border": "#2B3644",
+      "--text": "#E8EDF3", "--text-muted": "#8FA0B3", "--accent-frost": "#45B8C8",
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: 16, fontFamily: "'Inter', sans-serif",
+    }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');`}</style>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: "rgba(69,184,200,0.15)" }}>
-            <Snowflake size={22} style={{ color: "var(--accent-frost)" }} />
-          </div>
+          <LogoMark />
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--text)" }}>CPRAM FLEET</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--text)" }}>CPRAM TRANSPORT</div>
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
           </div>
         </div>
