@@ -16,7 +16,7 @@ import { supabase } from "../lib/supabaseClient";
 const TODAY = new Date(new Date().toDateString());
 
 const TEMP_META = {
-  freezer: { label: "ห้องเย็น -18°C", icon: Snowflake, color: "#45B8C8" },
+  freezer: { label: "ห้องเย็น -18°C", icon: Snowflake, color: "#0E8FA0" },
   chiller: { label: "แช่เย็น 0-4°C", icon: Droplet, color: "#5B9FE0" },
   ambient: { label: "อุณหภูมิห้อง", icon: Sun, color: "#E0A85B" },
 };
@@ -114,7 +114,7 @@ function TempChip({ temp }) {
 function StatusChip({ status, reason }) {
   const ready = status === "ready";
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: ready ? "rgba(95,190,132,0.15)" : "rgba(228,88,79,0.15)", color: ready ? "#5FBE84" : "#E4584F", border: `1px solid ${ready ? "#5FBE8455" : "#E4584F55"}` }} title={reason || ""}>
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: ready ? "rgba(22,163,74,0.15)" : "rgba(220,38,38,0.15)", color: ready ? "#16A34A" : "#DC2626", border: `1px solid ${ready ? "#16A34A55" : "#DC262655"}` }} title={reason || ""}>
       {ready ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
       {ready ? "พร้อมใช้งาน" : "ไม่พร้อมใช้งาน"}
     </span>
@@ -124,12 +124,12 @@ function StatusChip({ status, reason }) {
 // ใช้ได้กับทุกประเภทกำหนดการ (PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี)
 function DueChip({ status, daysLeft }) {
   if (status === "unknown" || daysLeft === null || daysLeft === undefined) {
-    return <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: "#8FA0B31E", color: "#8FA0B3", border: "1px solid #8FA0B355" }}>ไม่มีข้อมูล</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: "#64748B1E", color: "#64748B", border: "1px solid #64748B55" }}>ไม่มีข้อมูล</span>;
   }
   const conf = {
-    overdue: { color: "#E4584F", label: `เกินกำหนด ${Math.abs(daysLeft)} วัน` },
-    soon: { color: "#F0A94E", label: `ใกล้ครบกำหนด (${daysLeft} วัน)` },
-    ok: { color: "#8FA0B3", label: `อีก ${daysLeft} วัน` },
+    overdue: { color: "#DC2626", label: `เกินกำหนด ${Math.abs(daysLeft)} วัน` },
+    soon: { color: "#D97706", label: `ใกล้ครบกำหนด (${daysLeft} วัน)` },
+    ok: { color: "#64748B", label: `อีก ${daysLeft} วัน` },
   }[status];
   return (
     <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: `${conf.color}1E`, color: conf.color, border: `1px solid ${conf.color}55` }}>
@@ -139,7 +139,7 @@ function DueChip({ status, daysLeft }) {
 }
 
 function Card({ children, style }) {
-  return <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, ...style }}>{children}</div>;
+  return <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 2px 10px rgba(15,23,42,0.04)", ...style }}>{children}</div>;
 }
 
 function SectionTitle({ icon: Icon, children, sub }) {
@@ -195,11 +195,11 @@ function ConfirmDelete({ label, onConfirm, onCancel }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, width: "100%" }}>
         <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} style={{ color: "#E4584F" }} /><span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>ยืนยันการลบ</span></div>
+          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} style={{ color: "#DC2626" }} /><span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>ยืนยันการลบ</span></div>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18 }}>{label}</p>
           <div className="flex items-center justify-end gap-2">
             <button onClick={onCancel} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-            <button onClick={onConfirm} style={{ background: "#E4584F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ลบ</button>
+            <button onClick={onConfirm} style={{ background: "#DC2626", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ลบ</button>
           </div>
         </Card>
       </div>
@@ -339,10 +339,10 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
           <Field label="เปลี่ยนแบตเตอรี่ล่าสุด"><input style={inputStyle} type="date" value={form.battery_changed} onChange={(e) => update("battery_changed", e.target.value)} /></Field>
         </div>
 
-        {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
@@ -407,10 +407,10 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
           </Field>
         </div>
         <Field label="อู่ / ศูนย์บริการ (ทำที่ไหน)"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
-        {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
@@ -478,10 +478,10 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
           </Field>
           <Field label="ประสบการณ์ (ปี)"><input style={inputStyle} type="number" value={form.years} onChange={(e) => update("years", e.target.value)} /></Field>
         </div>
-        {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
@@ -513,8 +513,8 @@ function Dashboard({ vehicles, repairs }) {
   const recentRepairs = [...repairs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
 
   const statusData = [
-    { name: "พร้อมใช้งาน", value: readyCount, color: "#5FBE84" },
-    { name: "ไม่พร้อมใช้งาน", value: notReadyCount, color: "#E4584F" },
+    { name: "พร้อมใช้งาน", value: readyCount, color: "#16A34A" },
+    { name: "ไม่พร้อมใช้งาน", value: notReadyCount, color: "#DC2626" },
   ];
 
   const monthlyCost = useMemo(() => {
@@ -533,10 +533,10 @@ function Dashboard({ vehicles, repairs }) {
   const totalSpent = repairs.reduce((s, r) => s + Number(r.cost || 0), 0);
 
   const kpis = [
-    { label: "รถทั้งหมด", value: vehicles.length, icon: Truck, color: "#45B8C8" },
-    { label: "พร้อมใช้งาน", value: readyCount, icon: CheckCircle2, color: "#5FBE84" },
-    { label: "ไม่พร้อมใช้งาน", value: notReadyCount, icon: AlertTriangle, color: "#E4584F" },
-    { label: "รายการต้องดำเนินการ", value: alerts.length, icon: Clock3, color: "#F0A94E" },
+    { label: "รถทั้งหมด", value: vehicles.length, icon: Truck, color: "#0E8FA0" },
+    { label: "พร้อมใช้งาน", value: readyCount, icon: CheckCircle2, color: "#16A34A" },
+    { label: "ไม่พร้อมใช้งาน", value: notReadyCount, icon: AlertTriangle, color: "#DC2626" },
+    { label: "รายการต้องดำเนินการ", value: alerts.length, icon: Clock3, color: "#D97706" },
   ];
 
   return (
@@ -559,8 +559,8 @@ function Dashboard({ vehicles, repairs }) {
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={statusData} layout="vertical" margin={{ left: 0, right: 20 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#8FA0B3", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#1A222C", border: "1px solid #2B3644", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#E8EDF3" }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#1E293B" }} cursor={{ fill: "rgba(15,23,42,0.05)" }} />
               <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>{statusData.map((d, i) => <Cell key={i} fill={d.color} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -571,11 +571,11 @@ function Dashboard({ vehicles, repairs }) {
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>ค่าใช้จ่ายซ่อมบำรุงรายเดือน (บาท)</div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={monthlyCost}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2B3644" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#8FA0B3", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#8FA0B3", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => `${fmtMoney(v)} บาท`} contentStyle={{ background: "#1A222C", border: "1px solid #2B3644", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#E8EDF3" }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-              <Bar dataKey="cost" radius={[6, 6, 0, 0]} fill="#45B8C8" barSize={28} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => `${fmtMoney(v)} บาท`} contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#1E293B" }} cursor={{ fill: "rgba(15,23,42,0.05)" }} />
+              <Bar dataKey="cost" radius={[6, 6, 0, 0]} fill="#0E8FA0" barSize={28} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -583,7 +583,7 @@ function Dashboard({ vehicles, repairs }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={16} style={{ color: "#F0A94E" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>รายการที่ใกล้/เกินกำหนด ({alerts.length})</span></div>
+          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={16} style={{ color: "#D97706" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>รายการที่ใกล้/เกินกำหนด ({alerts.length})</span></div>
           <div className="flex flex-col gap-2" style={{ maxHeight: 320, overflowY: "auto" }}>
             {alerts.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรายการที่ต้องดำเนินการตอนนี้</p>}
             {alerts.map((a, i) => (
@@ -602,7 +602,7 @@ function Dashboard({ vehicles, repairs }) {
         </Card>
 
         <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><Wrench size={16} style={{ color: "#45B8C8" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>ประวัติการซ่อมล่าสุด</span></div>
+          <div className="flex items-center gap-2 mb-3"><Wrench size={16} style={{ color: "#0E8FA0" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>ประวัติการซ่อมล่าสุด</span></div>
           <div className="flex flex-col gap-2">
             {recentRepairs.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ยังไม่มีประวัติการซ่อม</p>}
             {recentRepairs.map((r) => (
@@ -653,7 +653,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <SectionTitle icon={Truck} sub="สเปครถ กำหนดการบำรุงรักษา และประวัติการซ่อมรายทะเบียน">รถทั้งหมด</SectionTitle>
-        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#0F1620", fontSize: 13, fontWeight: 700, height: 38 }}>
+        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38 }}>
           <Plus size={16} />เพิ่มรถคันใหม่
         </button>
       </div>
@@ -667,27 +667,29 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
 
       <Card style={{ overflow: "hidden", marginBottom: selVehicle ? 20 : 0 }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "สถานะรถ", "PM เครื่องยนต์", "คนขับ", "จัดการ", ""].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "สถานะรถ", "PM เครื่องยนต์", "คนขับ", "จัดการ", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((v) => (
-                <tr key={v.id} style={{ borderTop: "1px solid var(--border)", background: selected === v.id ? "rgba(69,184,200,0.08)" : "transparent" }}>
+                <tr key={v.id} style={{ borderTop: "1px solid var(--border)", background: selected === v.id ? "rgba(14,143,160,0.08)" : "transparent" }}>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><PlateBadge plate={v.id} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.brand} {v.model} <span style={{ color: "var(--text-muted)" }}>'{String(v.year).slice(2)}</span></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><TempChip temp={v.temp} /></td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.wheels || "-"} ล้อ</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.length_m ? `${v.length_m} ม.` : "-"}</td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><StatusChip status={v.status} reason={v.reason} /></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.driver}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <div className="flex items-center gap-1">
                       <button onClick={() => setFormState(v)} title="แก้ไข" style={iconBtnStyle}><Pencil size={15} /></button>
-                      <button onClick={() => setDeleteTarget(v)} title="ลบ" style={{ ...iconBtnStyle, color: "#E4584F" }}><Trash2 size={15} /></button>
+                      <button onClick={() => setDeleteTarget(v)} title="ลบ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={15} /></button>
                     </div>
                   </td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>
@@ -696,7 +698,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
+                <tr><td colSpan={10} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
               )}
             </tbody>
           </table>
@@ -717,8 +719,8 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
           </div>
 
           {selVehicle.status === "not_ready" && selVehicle.reason && (
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-5" style={{ background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55" }}>
-              <AlertTriangle size={14} style={{ color: "#E4584F" }} /><span style={{ fontSize: 13, color: "#E4584F" }}>{selVehicle.reason}</span>
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-5" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655" }}>
+              <AlertTriangle size={14} style={{ color: "#DC2626" }} /><span style={{ fontSize: 13, color: "#DC2626" }}>{selVehicle.reason}</span>
             </div>
           )}
 
@@ -758,7 +760,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>เปลี่ยนยางล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.tire_changed)}</div></div>
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>เปลี่ยนแบตล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.battery_changed)}</div></div>
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>คนขับประจำ</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.driver}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "rgba(69,184,200,0.1)", border: "1px solid #45B8C855" }}><div style={{ fontSize: 11, color: "var(--accent-frost)" }}>ค่าซ่อมสะสมทั้งหมด</div><div style={{ fontSize: 15, color: "var(--accent-frost)", fontWeight: 700, marginTop: 2 }}>{fmtMoney(selTotalCost)} บ.</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "rgba(14,143,160,0.1)", border: "1px solid #0E8FA055" }}><div style={{ fontSize: 11, color: "var(--accent-frost)" }}>ค่าซ่อมสะสมทั้งหมด</div><div style={{ fontSize: 15, color: "var(--accent-frost)", fontWeight: 700, marginTop: 2 }}>{fmtMoney(selTotalCost)} บ.</div></div>
           </div>
 
           <div className="flex items-center justify-between mb-3">
@@ -778,7 +780,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                   {items.map((r) => (
                     <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
                       <div className="flex items-center gap-3">
-                        <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(69,184,200,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
+                        <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
                         <div><div style={{ fontSize: 13, color: "var(--text)" }}>{r.description}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · {r.status}</div></div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -788,7 +790,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                         </div>
                         <div className="flex items-center gap-1">
                           <button onClick={() => setRepairForm(r)} title="แก้ไข" style={iconBtnStyle}><Pencil size={14} /></button>
-                          <button onClick={() => setDeleteRepairTarget(r)} title="ลบ" style={{ ...iconBtnStyle, color: "#E4584F" }}><Trash2 size={14} /></button>
+                          <button onClick={() => setDeleteRepairTarget(r)} title="ลบ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={14} /></button>
                         </div>
                       </div>
                     </div>
@@ -860,9 +862,9 @@ function MaintenanceView({ vehicles }) {
         กำหนดการบำรุงรักษา
       </SectionTitle>
       <div className="flex items-center gap-4 mb-4 flex-wrap" style={{ fontSize: 12, color: "var(--text-muted)" }}>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#E4584F", display: "inline-block" }} /> เกินกำหนด</span>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#F0A94E", display: "inline-block" }} /> ใกล้ครบกำหนด</span>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#8FA0B3", display: "inline-block" }} /> ปกติ</span>
+        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#DC2626", display: "inline-block" }} /> เกินกำหนด</span>
+        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#D97706", display: "inline-block" }} /> ใกล้ครบกำหนด</span>
+        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#64748B", display: "inline-block" }} /> ปกติ</span>
       </div>
       <Card style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
@@ -979,7 +981,7 @@ function RepairsLogView({ vehicles, repairs }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-3 rounded-lg px-4 py-2.5" style={{ background: "rgba(69,184,200,0.08)", border: "1px solid #45B8C845" }}>
+      <div className="flex items-center justify-between mb-3 rounded-lg px-4 py-2.5" style={{ background: "rgba(14,143,160,0.08)", border: "1px solid #0E8FA045" }}>
         <span style={{ fontSize: 13, color: "var(--text)" }}>พบ {filtered.length} รายการ</span>
         <span style={{ fontSize: 13, color: "var(--accent-frost)", fontWeight: 700 }}>รวม {fmtMoney(totalFiltered)} บาท</span>
       </div>
@@ -1000,11 +1002,11 @@ function RepairsLogView({ vehicles, repairs }) {
                   <td style={{ padding: "10px 14px" }}><PlateBadge plate={r.plate} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</td>
                   <td style={{ padding: "10px 14px" }}>
-                    <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(69,184,200,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
+                    <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
                   </td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{r.description}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#5FBE84" : "#F0A94E" }}>{r.status}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#16A34A" : "#D97706" }}>{r.status}</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</td>
                 </tr>
               ))}
@@ -1031,7 +1033,7 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <SectionTitle icon={User} sub="ข้อมูลพนักงานขับรถ ใบขับขี่ และรถที่รับผิดชอบ">พนักงานขับรถ</SectionTitle>
-        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#0F1620", fontSize: 13, fontWeight: 700, height: 38 }}>
+        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38 }}>
           <Plus size={16} />เพิ่มพนักงาน
         </button>
       </div>
@@ -1044,12 +1046,12 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
             <Card key={d.id} style={{ padding: 18 }}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center rounded-full" style={{ width: 42, height: 42, background: "rgba(69,184,200,0.15)", color: "var(--accent-frost)" }}><User size={20} /></div>
+                  <div className="flex items-center justify-center rounded-full" style={{ width: 42, height: 42, background: "rgba(14,143,160,0.15)", color: "var(--accent-frost)" }}><User size={20} /></div>
                   <div><div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{d.name}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{d.years} ปีประสบการณ์</div></div>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setFormState(d)} title="แก้ไข" style={iconBtnStyle}><Pencil size={14} /></button>
-                  <button onClick={() => setDeleteTarget(d)} title="ลบ" style={{ ...iconBtnStyle, color: "#E4584F" }}><Trash2 size={14} /></button>
+                  <button onClick={() => setDeleteTarget(d)} title="ลบ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={14} /></button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 mb-4">
@@ -1058,7 +1060,7 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
               </div>
               <div className="flex items-center justify-between rounded-lg px-3 py-2 mb-3" style={{ background: "var(--surface-2)" }}>
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>วันหมดอายุใบขับขี่</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: expSoon ? "#F0A94E" : "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(d.expiry)}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: expSoon ? "#D97706" : "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(d.expiry)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>รถที่รับผิดชอบ</span>
@@ -1191,14 +1193,14 @@ export default function FleetApp({ user }) {
 
   return (
     <div style={{
-      "--bg": "#10151C", "--surface": "#1A222C", "--surface-2": "#212B37", "--border": "#2B3644",
-      "--text": "#E8EDF3", "--text-muted": "#8FA0B3", "--accent-frost": "#45B8C8",
+      "--bg": "#F4F6F9", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
+      "--text": "#1E293B", "--text-muted": "#64748B", "--accent-frost": "#0E8FA0",
       background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif",
     }}>
-      <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(16,21,28,0.9)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
+      <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.85)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
         <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg" style={{ width: 42, height: 42, background: "#FFFFFF", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
+            <div className="flex items-center justify-center rounded-lg" style={{ width: 42, height: 42, background: "#FFFFFF", boxShadow: "0 2px 8px rgba(15,23,42,0.12)" }}>
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 15, fontStyle: "italic", letterSpacing: -0.5 }}>
                 <span style={{ color: "#E4432E" }}>cp</span><span style={{ color: "#4C9A3D" }}>ram</span>
               </span>
@@ -1212,7 +1214,7 @@ export default function FleetApp({ user }) {
             {TABS.map((t) => {
               const active = tab === t.key;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium" style={{ color: active ? "#0F1620" : "var(--text-muted)", background: active ? "var(--accent-frost)" : "transparent", transition: "all .15s" }}>
+                <button key={t.key} onClick={() => setTab(t.key)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium" style={{ color: active ? "#FFFFFF" : "var(--text-muted)", background: active ? "var(--accent-frost)" : "transparent", transition: "all .15s" }}>
                   <t.icon size={15} /><span className="hidden sm:inline">{t.label}</span>
                 </button>
               );
@@ -1229,7 +1231,7 @@ export default function FleetApp({ user }) {
 
       <main className="max-w-7xl mx-auto px-5 py-6">
         {errorMsg && (
-          <div style={{ marginBottom: 16, fontSize: 12, color: "#F0A94E", background: "rgba(240,169,78,0.1)", border: "1px solid #F0A94E55", borderRadius: 8, padding: "8px 12px" }}>{errorMsg}</div>
+          <div style={{ marginBottom: 16, fontSize: 12, color: "#D97706", background: "rgba(217,119,6,0.1)", border: "1px solid #D9770655", borderRadius: 8, padding: "8px 12px" }}>{errorMsg}</div>
         )}
         {loading ? (
           <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "40px 0", textAlign: "center" }}>กำลังโหลดข้อมูล...</div>
