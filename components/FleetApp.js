@@ -906,6 +906,120 @@ function MaintenanceView({ vehicles }) {
 }
 
 /* ---------------------------------------------------------------
+   REPAIRS LOG VIEW (ประวัติการซ่อมทั้งหมด - ทุกคันรวมกัน)
+---------------------------------------------------------------- */
+
+function RepairsLogView({ vehicles, repairs }) {
+  const [plateFilter, setPlateFilter] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState("date_desc");
+
+  const monthOptions = useMemo(() => {
+    const set = new Set();
+    repairs.forEach((r) => {
+      const d = new Date(r.date);
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    });
+    return Array.from(set).sort().reverse();
+  }, [repairs]);
+
+  const filtered = useMemo(() => {
+    let list = [...repairs];
+    if (plateFilter !== "all") list = list.filter((r) => r.plate === plateFilter);
+    if (monthFilter !== "all") {
+      list = list.filter((r) => {
+        const d = new Date(r.date);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return key === monthFilter;
+      });
+    }
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter((r) => r.description.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.plate.toLowerCase().includes(q) || (r.garage || "").toLowerCase().includes(q));
+    }
+    if (sortBy === "date_desc") list.sort((a, b) => new Date(b.date) - new Date(a.date));
+    else if (sortBy === "date_asc") list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    else if (sortBy === "cost_desc") list.sort((a, b) => b.cost - a.cost);
+    else if (sortBy === "cost_asc") list.sort((a, b) => a.cost - b.cost);
+    return list;
+  }, [repairs, plateFilter, monthFilter, query, sortBy]);
+
+  const totalFiltered = filtered.reduce((s, r) => s + Number(r.cost || 0), 0);
+
+  const monthLabel = (key) => {
+    const [y, m] = key.split("-");
+    return `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
+  };
+
+  return (
+    <div>
+      <SectionTitle icon={ClipboardList} sub="รวมประวัติการซ่อมของรถทุกคัน กรองดูตามรถ / เดือน / คำค้นหาได้">
+        ประวัติการซ่อมทั้งหมด
+      </SectionTitle>
+
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <select value={plateFilter} onChange={(e) => setPlateFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 140 }}>
+          <option value="all">ทุกคัน</option>
+          {vehicles.map((v) => <option key={v.id} value={v.id}>{v.id} · {v.brand} {v.model}</option>)}
+        </select>
+        <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 140 }}>
+          <option value="all">ทุกเดือน</option>
+          {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 160 }}>
+          <option value="date_desc">วันที่ล่าสุดก่อน</option>
+          <option value="date_asc">วันที่เก่าสุดก่อน</option>
+          <option value="cost_desc">ค่าใช้จ่ายมากไปน้อย</option>
+          <option value="cost_asc">ค่าใช้จ่ายน้อยไปมาก</option>
+        </select>
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", minWidth: 200, flex: 1 }}>
+          <Search size={15} style={{ color: "var(--text-muted)" }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหา เช่น ยาง, เบรก, ชื่ออู่" style={{ background: "transparent", outline: "none", color: "var(--text)", fontSize: 13, width: "100%" }} />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-3 rounded-lg px-4 py-2.5" style={{ background: "rgba(69,184,200,0.08)", border: "1px solid #45B8C845" }}>
+        <span style={{ fontSize: 13, color: "var(--text)" }}>พบ {filtered.length} รายการ</span>
+        <span style={{ fontSize: 13, color: "var(--accent-frost)", fontWeight: 700 }}>รวม {fmtMoney(totalFiltered)} บาท</span>
+      </div>
+
+      <Card style={{ overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+            <thead>
+              <tr style={{ background: "var(--surface-2)" }}>
+                {["ทะเบียน", "วันที่", "ประเภท", "รายละเอียด", "อู่/ศูนย์บริการ", "สถานะ", "ค่าใช้จ่าย"].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "10px 14px" }}><PlateBadge plate={r.plate} /></td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(69,184,200,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
+                  </td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{r.description}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#5FBE84" : "#F0A94E" }}>{r.status}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรายการซ่อมที่ตรงกับตัวกรอง</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
    DRIVERS VIEW
 ---------------------------------------------------------------- */
 
@@ -984,6 +1098,7 @@ const TABS = [
   { key: "dashboard", label: "แดชบอร์ด", icon: Gauge },
   { key: "vehicles", label: "รถทั้งหมด", icon: Truck },
   { key: "maintenance", label: "บำรุงรักษา", icon: Settings2 },
+  { key: "repairlog", label: "ประวัติการซ่อม", icon: ClipboardList },
   { key: "drivers", label: "พนักงานขับรถ", icon: User },
 ];
 
@@ -1125,6 +1240,7 @@ export default function FleetApp({ user }) {
               />
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
+            {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
             )}
