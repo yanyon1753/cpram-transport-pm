@@ -1193,8 +1193,7 @@ export default function FleetApp({ user }) {
 
   return (
     <div style={{
-      "--bg": "LightSteelBlue
-#B0C4DE", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
+      "--bg": "#B0C4DE", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
       "--text": "#1E293B", "--text-muted": "#64748B", "--accent-frost": "#0E8FA0",
       background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif",
     }}>
