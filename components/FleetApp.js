@@ -94,7 +94,7 @@ function PlateBadge({ plate, size = "md" }) {
   const num = parts[1] || "";
   const big = size === "lg";
   return (
-    <div style={{ background: "#F4F2EC", border: "2px solid #1E3A5F", borderRadius: 6, padding: big ? "6px 12px" : "4px 8px", display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1, minWidth: big ? 96 : 76, boxShadow: "0 1px 0 rgba(0,0,0,0.25) inset" }}>
+    <div style={{ background: "#f1f8e9", border: "2px solid #1E3A5F", borderRadius: 6, padding: big ? "6px 12px" : "4px 8px", display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1, minWidth: big ? 96 : 76, boxShadow: "0 1px 0 rgba(0,0,0,0.25) inset" }}>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: big ? 20 : 15, color: "#141414", letterSpacing: 1 }}>{num ? `${prefix}-${num}` : prefix}</span>
       <span style={{ fontFamily: "'Inter', sans-serif", fontSize: big ? 10 : 8, color: "#1E3A5F", fontWeight: 600 }}>กรุงเทพมหานคร</span>
     </div>
