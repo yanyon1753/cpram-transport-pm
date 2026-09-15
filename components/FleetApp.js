@@ -5,21 +5,22 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText,
+  Plus, Trash2, Pencil, LogOut, Settings2, FileText, LayoutDashboard, Car, ShieldAlert
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
 /* ---------------------------------------------------------------
-   CONFIG
+   CONFIG & CONSTANTS
 ---------------------------------------------------------------- */
 
 const TODAY = new Date(new Date().toDateString());
 
 const TEMP_META = {
-  freezer: { label: "ห้องเย็น -18°C", icon: Snowflake, color: "#45B8C8" },
-  chiller: { label: "แช่เย็น 0-4°C", icon: Droplet, color: "#5B9FE0" },
-  ambient: { label: "อุณหภูมิห้อง", icon: Sun, color: "#E0A85B" },
+  freezer: { label: "ห้องเย็น -18°C", icon: Snowflake, bg: "#E0F2FE", color: "#0284C7", border: "#BAE6FD" },
+  chiller: { label: "แช่เย็น 0-4°C", icon: Droplet, bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
+  ambient: { label: "อุณหภูมิห้อง", icon: Sun, bg: "#FEF3C7", color: "#D97706", border: "#FDE68A" },
 };
+
 const REPAIR_TYPES = ["เครื่องยนต์", "ระบบทำความเย็น", "ระบบไฟฟ้า", "เบรก", "ยาง", "แบตเตอรี่", "ตัวถัง", "อื่นๆ"];
 const DRIVER_LICENSE_TYPES = ["ท.2", "ท.3", "ท.4"];
 const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
@@ -34,7 +35,6 @@ function fmtDate(d) { if (!d) return "-"; const date = typeof d === "string" ? n
 function fmtMoney(n) { return Number(n || 0).toLocaleString("th-TH"); }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-// คำนวณสถานะ "ครบรอบ" จากวันที่ล่าสุด + จำนวนวันต่อรอบ (ใช้กับ PM / คาลิเบรท)
 function computeDue(lastDateStr, intervalDays) {
   if (!lastDateStr) return { next: null, daysLeft: null, status: "unknown" };
   const next = addDays(lastDateStr, intervalDays || 0);
@@ -45,7 +45,6 @@ function computeDue(lastDateStr, intervalDays) {
   return { next, daysLeft, status };
 }
 
-// คำนวณสถานะ "วันหมดอายุ" ตรงๆ (ใช้กับภาษี/พรบ)
 function computeExpiry(dateStr, warnDays = 30) {
   if (!dateStr) return { daysLeft: null, status: "unknown" };
   const d = new Date(dateStr);
@@ -71,32 +70,36 @@ function computeVehicle(v) {
 async function fetchVehicles() {
   const { data, error } = await supabase.from("vehicles").select("*").order("id");
   if (error) throw error;
-  return data;
+  return data || [];
 }
 async function fetchRepairs() {
   const { data, error } = await supabase.from("repairs").select("*").order("date", { ascending: false });
   if (error) throw error;
-  return data;
+  return data || [];
 }
 async function fetchDrivers() {
   const { data, error } = await supabase.from("drivers").select("*").order("name");
   if (error) throw error;
-  return data;
+  return data || [];
 }
 
 /* ---------------------------------------------------------------
-   SMALL UI PIECES
+   REUSABLE UI COMPONENTS (Clean Light Theme)
 ---------------------------------------------------------------- */
 
 function PlateBadge({ plate, size = "md" }) {
   const parts = (plate || "").split("-");
   const prefix = parts[0] || plate || "-";
   const num = parts[1] || "";
-  const big = size === "lg";
+  const isLg = size === "lg";
   return (
-    <div style={{ background: "#F4F2EC", border: "2px solid #1E3A5F", borderRadius: 6, padding: big ? "6px 12px" : "4px 8px", display: "inline-flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1, minWidth: big ? 96 : 76, boxShadow: "0 1px 0 rgba(0,0,0,0.25) inset" }}>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: big ? 20 : 15, color: "#141414", letterSpacing: 1 }}>{num ? `${prefix}-${num}` : prefix}</span>
-      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: big ? 10 : 8, color: "#1E3A5F", fontWeight: 600 }}>กรุงเทพมหานคร</span>
+    <div className={`inline-flex flex-col items-center justify-center bg-slate-50 border-2 border-slate-800 rounded-lg shadow-sm ${isLg ? 'px-3 py-1.5 min-w-[100px]' : 'px-2 py-1 min-w-[80px]'}`}>
+      <span className={`font-mono font-bold tracking-wider text-slate-900 leading-none ${isLg ? 'text-lg' : 'text-sm'}`}>
+        {num ? `${prefix}-${num}` : prefix}
+      </span>
+      <span className={`font-sans font-semibold text-slate-500 leading-tight ${isLg ? 'text-[10px]' : 'text-[8px]'}`}>
+        กรุงเทพมหานคร
+      </span>
     </div>
   );
 }
@@ -105,8 +108,12 @@ function TempChip({ temp }) {
   const meta = TEMP_META[temp] || TEMP_META.ambient;
   const Icon = meta.icon;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium" style={{ background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}55` }}>
-      <Icon size={13} />{meta.label}
+    <span 
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+      style={{ backgroundColor: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}
+    >
+      <Icon size={13} />
+      {meta.label}
     </span>
   );
 }
@@ -114,49 +121,68 @@ function TempChip({ temp }) {
 function StatusChip({ status, reason }) {
   const ready = status === "ready";
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: ready ? "rgba(95,190,132,0.15)" : "rgba(228,88,79,0.15)", color: ready ? "#5FBE84" : "#E4584F", border: `1px solid ${ready ? "#5FBE8455" : "#E4584F55"}` }} title={reason || ""}>
+    <span 
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+        ready 
+          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+          : 'bg-rose-50 text-rose-700 border border-rose-200'
+      }`}
+      title={reason || ""}
+    >
       {ready ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
       {ready ? "พร้อมใช้งาน" : "ไม่พร้อมใช้งาน"}
     </span>
   );
 }
 
-// ใช้ได้กับทุกประเภทกำหนดการ (PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี)
 function DueChip({ status, daysLeft }) {
   if (status === "unknown" || daysLeft === null || daysLeft === undefined) {
-    return <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: "#8FA0B31E", color: "#8FA0B3", border: "1px solid #8FA0B355" }}>ไม่มีข้อมูล</span>;
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+        ไม่มีข้อมูล
+      </span>
+    );
   }
   const conf = {
-    overdue: { color: "#E4584F", label: `เกินกำหนด ${Math.abs(daysLeft)} วัน` },
-    soon: { color: "#F0A94E", label: `ใกล้ครบกำหนด (${daysLeft} วัน)` },
-    ok: { color: "#8FA0B3", label: `อีก ${daysLeft} วัน` },
+    overdue: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", label: `เกินกำหนด ${Math.abs(daysLeft)} วัน` },
+    soon: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: `ใกล้ครบกำหนด (${daysLeft} วัน)` },
+    ok: { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", label: `อีก ${daysLeft} วัน` },
   }[status];
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold" style={{ background: `${conf.color}1E`, color: conf.color, border: `1px solid ${conf.color}55` }}>
-      <Clock3 size={13} />{conf.label}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${conf.bg} ${conf.text} ${conf.border}`}>
+      <Clock3 size={13} />
+      {conf.label}
     </span>
   );
 }
 
-function Card({ children, style }) {
-  return <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, ...style }}>{children}</div>;
+function Card({ children, className = "" }) {
+  return (
+    <div className={`bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 ${className}`}>
+      {children}
+    </div>
+  );
 }
 
-function SectionTitle({ icon: Icon, children, sub }) {
+function SectionTitle({ icon: Icon, children, sub, action }) {
   return (
-    <div className="mb-4">
-      <div className="flex items-center gap-2">
-        <Icon size={18} style={{ color: "var(--accent-frost)" }} />
-        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 700, color: "var(--text)" }}>{children}</h2>
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div>
+        <div className="flex items-center gap-2.5">
+          {Icon && <Icon className="w-6 h-6 text-sky-600" />}
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">{children}</h1>
+        </div>
+        {sub && <p className="text-sm text-slate-500 mt-1">{sub}</p>}
       </div>
-      {sub && <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{sub}</p>}
+      {action && <div>{action}</div>}
     </div>
   );
 }
 
 function SubHeading({ children }) {
   return (
-    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-frost)", textTransform: "uppercase", letterSpacing: 0.5, margin: "4px 0 2px" }}>
+    <div className="text-xs font-bold text-sky-700 uppercase tracking-wider mb-2 mt-4 pb-1 border-b border-slate-100">
       {children}
     </div>
   );
@@ -164,24 +190,25 @@ function SubHeading({ children }) {
 
 function Field({ label, children }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{label}</span>
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
       {children}
     </label>
   );
 }
 
-const inputStyle = { background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", color: "var(--text)", fontSize: 13, outline: "none", width: "100%" };
-const iconBtnStyle = { color: "var(--text-muted)", padding: 4, borderRadius: 6, cursor: "pointer" };
+const inputClass = "w-full bg-slate-50 border border-slate-300 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-100 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none transition-all";
 
 function ModalShell({ title, onClose, children, width = 560 }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: width, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
-        <Card style={{ padding: 22 }}>
-          <div className="flex items-center justify-between mb-5">
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>{title}</span>
-            <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={18} /></button>
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: width }} className="w-full max-h-[90vh] overflow-y-auto">
+        <Card className="p-6">
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+            <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+              <X size={20} />
+            </button>
           </div>
           {children}
         </Card>
@@ -192,14 +219,21 @@ function ModalShell({ title, onClose, children, width = 560 }) {
 
 function ConfirmDelete({ label, onConfirm, onCancel }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, width: "100%" }}>
-        <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} style={{ color: "#E4584F" }} /><span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>ยืนยันการลบ</span></div>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18 }}>{label}</p>
-          <div className="flex items-center justify-end gap-2">
-            <button onClick={onCancel} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-            <button onClick={onConfirm} style={{ background: "#E4584F", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ลบ</button>
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} className="max-w-md w-full">
+        <Card className="p-6">
+          <div className="flex items-center gap-3 text-rose-600 mb-3">
+            <AlertTriangle size={24} />
+            <h3 className="text-lg font-bold text-slate-800">ยืนยันการลบข้อมูล</h3>
+          </div>
+          <p className="text-sm text-slate-600 mb-6">{label}</p>
+          <div className="flex items-center justify-end gap-3">
+            <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors">
+              ยกเลิก
+            </button>
+            <button onClick={onConfirm} className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors shadow-sm">
+              ยืนยันการลบ
+            </button>
           </div>
         </Card>
       </div>
@@ -208,7 +242,7 @@ function ConfirmDelete({ label, onConfirm, onCancel }) {
 }
 
 /* ---------------------------------------------------------------
-   VEHICLE FORM (add + edit) - ครบทุกข้อมูล
+   MODALS (Vehicle, Repair, Driver)
 ---------------------------------------------------------------- */
 
 function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
@@ -247,7 +281,6 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     const otherPlates = existingPlates.filter((p) => !isEdit || p !== initial.id);
     if (otherPlates.includes(plate)) return setError("มีทะเบียนนี้อยู่แล้วในระบบ");
     if (!form.brand.trim() || !form.model.trim()) return setError("กรุณากรอกยี่ห้อและรุ่น");
-    if (!form.last_pm) return setError("กรุณาเลือกวันที่ PM เครื่องยนต์ล่าสุด");
 
     setSaving(true);
     setError("");
@@ -283,66 +316,63 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <SubHeading>ข้อมูลทั่วไป</SubHeading>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="ทะเบียนรถ *"><input style={inputStyle} placeholder="เช่น 70-1234" value={form.id} onChange={(e) => update("id", e.target.value)} /></Field>
-          <Field label="คนขับประจำ"><input style={inputStyle} placeholder="ชื่อ-นามสกุล" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
+          <Field label="ทะเบียนรถ *"><input className={inputClass} placeholder="เช่น 70-1234" value={form.id} onChange={(e) => update("id", e.target.value)} /></Field>
+          <Field label="คนขับประจำ"><input className={inputClass} placeholder="ชื่อ-นามสกุล" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="ยี่ห้อ *"><input style={inputStyle} placeholder="เช่น Isuzu" value={form.brand} onChange={(e) => update("brand", e.target.value)} /></Field>
-          <Field label="รุ่น *"><input style={inputStyle} placeholder="เช่น FRR90" value={form.model} onChange={(e) => update("model", e.target.value)} /></Field>
+          <Field label="ยี่ห้อ *"><input className={inputClass} placeholder="เช่น Isuzu" value={form.brand} onChange={(e) => update("brand", e.target.value)} /></Field>
+          <Field label="รุ่น *"><input className={inputClass} placeholder="เช่น FRR90" value={form.model} onChange={(e) => update("model", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="ปีรถ"><input style={inputStyle} type="number" value={form.year} onChange={(e) => update("year", e.target.value)} /></Field>
+          <Field label="ปีรถ"><input className={inputClass} type="number" value={form.year} onChange={(e) => update("year", e.target.value)} /></Field>
           <Field label="สถานะรถ">
-            <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
+            <select className={inputClass} value={form.status} onChange={(e) => update("status", e.target.value)}>
               <option value="ready">พร้อมใช้งาน</option>
               <option value="not_ready">ไม่พร้อมใช้งาน</option>
             </select>
           </Field>
         </div>
         {form.status === "not_ready" && (
-          <Field label="เหตุผลที่ไม่พร้อมใช้งาน"><input style={inputStyle} placeholder="เช่น รอซ่อมเครื่องยนต์" value={form.reason} onChange={(e) => update("reason", e.target.value)} /></Field>
+          <Field label="เหตุผลที่ไม่พร้อมใช้งาน"><input className={inputClass} placeholder="เช่น รอซ่อมเครื่องยนต์" value={form.reason} onChange={(e) => update("reason", e.target.value)} /></Field>
         )}
 
         <SubHeading>สเปครถ / ระบบทำความเย็น</SubHeading>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ประเภทตู้บรรทุก">
-            <select style={inputStyle} value={form.temp} onChange={(e) => update("temp", e.target.value)}>
+            <select className={inputClass} value={form.temp} onChange={(e) => update("temp", e.target.value)}>
               <option value="freezer">ห้องเย็น -18°C</option>
               <option value="chiller">แช่เย็น 0-4°C</option>
               <option value="ambient">อุณหภูมิห้อง</option>
             </select>
           </Field>
-          <Field label="ยี่ห้อเครื่องทำความเย็น"><input style={inputStyle} placeholder="เช่น Thermo King, Carrier" value={form.cooling_brand} onChange={(e) => update("cooling_brand", e.target.value)} /></Field>
+          <Field label="ยี่ห้อเครื่องทำความเย็น"><input className={inputClass} placeholder="เช่น Thermo King" value={form.cooling_brand} onChange={(e) => update("cooling_brand", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="จำนวนล้อ"><input style={inputStyle} type="number" value={form.wheels} onChange={(e) => update("wheels", e.target.value)} /></Field>
-          <Field label="ความยาว (เมตร)"><input style={inputStyle} type="number" step="0.1" value={form.length_m} onChange={(e) => update("length_m", e.target.value)} /></Field>
-          <Field label="ถังน้ำมัน (ลิตร)"><input style={inputStyle} type="number" value={form.fuel_tank_liters} onChange={(e) => update("fuel_tank_liters", e.target.value)} /></Field>
+          <Field label="จำนวนล้อ"><input className={inputClass} type="number" value={form.wheels} onChange={(e) => update("wheels", e.target.value)} /></Field>
+          <Field label="ความยาว (เมตร)"><input className={inputClass} type="number" step="0.1" value={form.length_m} onChange={(e) => update("length_m", e.target.value)} /></Field>
+          <Field label="ถังน้ำมัน (ลิตร)"><input className={inputClass} type="number" value={form.fuel_tank_liters} onChange={(e) => update("fuel_tank_liters", e.target.value)} /></Field>
         </div>
 
         <SubHeading>กำหนดการบำรุงรักษา</SubHeading>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="PM เครื่องยนต์ล่าสุด *"><input style={inputStyle} type="date" value={form.last_pm} onChange={(e) => update("last_pm", e.target.value)} /></Field>
-          <Field label="รอบ PM เครื่องยนต์ (วัน)"><input style={inputStyle} type="number" value={form.pm_interval} onChange={(e) => update("pm_interval", e.target.value)} /></Field>
+          <Field label="PM เครื่องยนต์ล่าสุด *"><input className={inputClass} type="date" value={form.last_pm} onChange={(e) => update("last_pm", e.target.value)} /></Field>
+          <Field label="รอบ PM เครื่องยนต์ (วัน)"><input className={inputClass} type="number" value={form.pm_interval} onChange={(e) => update("pm_interval", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="PM ตู้เย็นล่าสุด"><input style={inputStyle} type="date" value={form.cooling_pm_last} onChange={(e) => update("cooling_pm_last", e.target.value)} /></Field>
-          <Field label="รอบ PM ตู้เย็น (วัน)"><input style={inputStyle} type="number" value={form.cooling_pm_interval} onChange={(e) => update("cooling_pm_interval", e.target.value)} /></Field>
+          <Field label="PM ตู้เย็นล่าสุด"><input className={inputClass} type="date" value={form.cooling_pm_last} onChange={(e) => update("cooling_pm_last", e.target.value)} /></Field>
+          <Field label="รอบ PM ตู้เย็น (วัน)"><input className={inputClass} type="number" value={form.cooling_pm_interval} onChange={(e) => update("cooling_pm_interval", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="คาลิเบรทตู้เย็นล่าสุด"><input style={inputStyle} type="date" value={form.calibration_last} onChange={(e) => update("calibration_last", e.target.value)} /></Field>
-          <Field label="รอบคาลิเบรท (วัน)"><input style={inputStyle} type="number" value={form.calibration_interval} onChange={(e) => update("calibration_interval", e.target.value)} /></Field>
+          <Field label="คาลิเบรทตู้เย็นล่าสุด"><input className={inputClass} type="date" value={form.calibration_last} onChange={(e) => update("calibration_last", e.target.value)} /></Field>
+          <Field label="รอบคาลิเบรท (วัน)"><input className={inputClass} type="number" value={form.calibration_interval} onChange={(e) => update("calibration_interval", e.target.value)} /></Field>
         </div>
-        <Field label="วันหมดอายุภาษี/พ.ร.บ."><input style={inputStyle} type="date" value={form.tax_expiry} onChange={(e) => update("tax_expiry", e.target.value)} /></Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="เปลี่ยนยางล่าสุด"><input style={inputStyle} type="date" value={form.tire_changed} onChange={(e) => update("tire_changed", e.target.value)} /></Field>
-          <Field label="เปลี่ยนแบตเตอรี่ล่าสุด"><input style={inputStyle} type="date" value={form.battery_changed} onChange={(e) => update("battery_changed", e.target.value)} /></Field>
-        </div>
+        <Field label="วันหมดอายุภาษี/พ.ร.บ."><input className={inputClass} type="date" value={form.tax_expiry} onChange={(e) => update("tax_expiry", e.target.value)} /></Field>
 
-        {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+        {error && <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2.5 mt-2">{error}</div>}
+        
+        <div className="flex items-center justify-end gap-3 mt-4 pt-3 border-t border-slate-100">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors">ยกเลิก</button>
+          <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50">
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
@@ -350,10 +380,6 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     </ModalShell>
   );
 }
-
-/* ---------------------------------------------------------------
-   REPAIR FORM (add + edit)
----------------------------------------------------------------- */
 
 function RepairFormModal({ plate, initial, onClose, onSave }) {
   const isEdit = !!initial;
@@ -378,7 +404,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
       });
       onClose();
     } catch (err) {
-      setError(err.message || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      setError(err.message || "บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -386,31 +412,33 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
 
   return (
     <ModalShell title={isEdit ? "แก้ไขรายการซ่อม" : "เพิ่มรายการซ่อม"} onClose={onClose}>
-      <div style={{ marginBottom: 12 }}><PlateBadge plate={plate} /></div>
+      <div className="mb-4"><PlateBadge plate={plate} /></div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="วันที่ซ่อม *"><input style={inputStyle} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
+          <Field label="วันที่ซ่อม *"><input className={inputClass} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
           <Field label="ประเภทงานซ่อม">
-            <select style={inputStyle} value={form.type} onChange={(e) => update("type", e.target.value)}>
+            <select className={inputClass} value={form.type} onChange={(e) => update("type", e.target.value)}>
               {REPAIR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
         </div>
-        <Field label="รายละเอียดงานซ่อม (ทำอะไรไปบ้าง) *"><input style={inputStyle} placeholder="เช่น เปลี่ยนผ้าเบรกหน้า" value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
+        <Field label="รายละเอียดงานซ่อม *"><input className={inputClass} placeholder="เช่น เปลี่ยนผ้าเบรกหน้า" value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="ค่าใช้จ่าย (บาท)"><input style={inputStyle} type="number" value={form.cost} onChange={(e) => update("cost", e.target.value)} /></Field>
+          <Field label="ค่าใช้จ่าย (บาท)"><input className={inputClass} type="number" value={form.cost} onChange={(e) => update("cost", e.target.value)} /></Field>
           <Field label="สถานะงาน">
-            <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
+            <select className={inputClass} value={form.status} onChange={(e) => update("status", e.target.value)}>
               <option value="เสร็จสิ้น">เสร็จสิ้น</option>
               <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
             </select>
           </Field>
         </div>
-        <Field label="อู่ / ศูนย์บริการ (ทำที่ไหน)"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
-        {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+        <Field label="อู่ / ศูนย์บริการ"><input className={inputClass} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
+        
+        {error && <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2.5 mt-2">{error}</div>}
+
+        <div className="flex items-center justify-end gap-3 mt-4 pt-3 border-t border-slate-100">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors">ยกเลิก</button>
+          <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50">
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
@@ -418,10 +446,6 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
     </ModalShell>
   );
 }
-
-/* ---------------------------------------------------------------
-   DRIVER FORM (add + edit)
----------------------------------------------------------------- */
 
 function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
   const isEdit = !!initial;
@@ -436,7 +460,6 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
     e.preventDefault();
     if (!form.name.trim()) return setError("กรุณากรอกชื่อ-นามสกุล");
     if (!form.license.trim()) return setError("กรุณากรอกเลขที่ใบขับขี่");
-    if (!form.expiry) return setError("กรุณาเลือกวันหมดอายุใบขับขี่");
     setSaving(true);
     setError("");
     try {
@@ -447,7 +470,7 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
       });
       onClose();
     } catch (err) {
-      setError(err.message || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      setError(err.message || "บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -456,32 +479,34 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
   return (
     <ModalShell title={isEdit ? "แก้ไขข้อมูลพนักงานขับรถ" : "เพิ่มพนักงานขับรถ"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <Field label="ชื่อ-นามสกุล *"><input style={inputStyle} value={form.name} onChange={(e) => update("name", e.target.value)} /></Field>
+        <Field label="ชื่อ-นามสกุล *"><input className={inputClass} value={form.name} onChange={(e) => update("name", e.target.value)} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="เลขที่ใบขับขี่ *"><input style={inputStyle} placeholder="เช่น 31-045678-9" value={form.license} onChange={(e) => update("license", e.target.value)} /></Field>
+          <Field label="เลขที่ใบขับขี่ *"><input className={inputClass} placeholder="เช่น 31-045678-9" value={form.license} onChange={(e) => update("license", e.target.value)} /></Field>
           <Field label="ประเภทใบขับขี่">
-            <select style={inputStyle} value={form.license_type} onChange={(e) => update("license_type", e.target.value)}>
+            <select className={inputClass} value={form.license_type} onChange={(e) => update("license_type", e.target.value)}>
               {DRIVER_LICENSE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="วันหมดอายุใบขับขี่ *"><input style={inputStyle} type="date" value={form.expiry} onChange={(e) => update("expiry", e.target.value)} /></Field>
-          <Field label="เบอร์โทรศัพท์"><input style={inputStyle} placeholder="08x-xxx-xxxx" value={form.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
+          <Field label="วันหมดอายุใบขับขี่ *"><input className={inputClass} type="date" value={form.expiry} onChange={(e) => update("expiry", e.target.value)} /></Field>
+          <Field label="เบอร์โทรศัพท์"><input className={inputClass} placeholder="08x-xxx-xxxx" value={form.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="รถที่รับผิดชอบ">
-            <select style={inputStyle} value={form.vehicle} onChange={(e) => update("vehicle", e.target.value)}>
+            <select className={inputClass} value={form.vehicle} onChange={(e) => update("vehicle", e.target.value)}>
               <option value="สำรอง">พนักงานสำรอง (ไม่ประจำรถ)</option>
               {vehiclePlates.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </Field>
-          <Field label="ประสบการณ์ (ปี)"><input style={inputStyle} type="number" value={form.years} onChange={(e) => update("years", e.target.value)} /></Field>
+          <Field label="ประสบการณ์ (ปี)"><input className={inputClass} type="number" value={form.years} onChange={(e) => update("years", e.target.value)} /></Field>
         </div>
-        {error && <div style={{ fontSize: 12, color: "#E4584F", background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#0F1620", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+
+        {error && <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2.5 mt-2">{error}</div>}
+
+        <div className="flex items-center justify-end gap-3 mt-4 pt-3 border-t border-slate-100">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors">ยกเลิก</button>
+          <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50">
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
@@ -491,14 +516,13 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
 }
 
 /* ---------------------------------------------------------------
-   DASHBOARD
+   MAIN DASHBOARD VIEW
 ---------------------------------------------------------------- */
 
 function Dashboard({ vehicles, repairs }) {
   const readyCount = vehicles.filter((v) => v.status === "ready").length;
   const notReadyCount = vehicles.length - readyCount;
 
-  // รวมรายการแจ้งเตือนทุกประเภทเข้าด้วยกัน: PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี
   const alerts = useMemo(() => {
     const list = [];
     vehicles.forEach((v) => {
@@ -510,11 +534,11 @@ function Dashboard({ vehicles, repairs }) {
     return list.sort((a, b) => a.daysLeft - b.daysLeft);
   }, [vehicles]);
 
-  const recentRepairs = [...repairs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
+  const recentRepairs = [...repairs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
   const statusData = [
-    { name: "พร้อมใช้งาน", value: readyCount, color: "#5FBE84" },
-    { name: "ไม่พร้อมใช้งาน", value: notReadyCount, color: "#E4584F" },
+    { name: "พร้อมใช้งาน", value: readyCount, color: "#10B981" },
+    { name: "ไม่พร้อมใช้งาน", value: notReadyCount, color: "#F43F5E" },
   ];
 
   const monthlyCost = useMemo(() => {
@@ -533,728 +557,650 @@ function Dashboard({ vehicles, repairs }) {
   const totalSpent = repairs.reduce((s, r) => s + Number(r.cost || 0), 0);
 
   const kpis = [
-    { label: "รถทั้งหมด", value: vehicles.length, icon: Truck, color: "#45B8C8" },
-    { label: "พร้อมใช้งาน", value: readyCount, icon: CheckCircle2, color: "#5FBE84" },
-    { label: "ไม่พร้อมใช้งาน", value: notReadyCount, icon: AlertTriangle, color: "#E4584F" },
-    { label: "รายการต้องดำเนินการ", value: alerts.length, icon: Clock3, color: "#F0A94E" },
+    { label: "รถทั้งหมด", value: vehicles.length, unit: "คัน", icon: Truck, color: "text-sky-600", bg: "bg-sky-50" },
+    { label: "พร้อมใช้งาน", value: readyCount, unit: "คัน", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "ไม่พร้อมใช้งาน", value: notReadyCount, unit: "คัน", icon: AlertTriangle, color: "text-rose-600", bg: "bg-rose-50" },
+    { label: "ต้องดำเนินการ", value: alerts.length, unit: "รายการ", icon: Clock3, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
   return (
-    <div>
-      <SectionTitle icon={Gauge} sub="ภาพรวมสถานะรถบรรทุกควบคุมอุณหภูมิทั้งหมด ณ วันนี้">แดชบอร์ดภาพรวม</SectionTitle>
+    <div className="space-y-6">
+      <SectionTitle icon={Gauge} sub="ภาพรวมสถานะฟลีตรถบรรทุกควบคุมอุณหภูมิ ณ วันนี้">
+        แดชบอร์ดภาพรวม
+      </SectionTitle>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => (
-          <Card key={k.label} style={{ padding: 18 }}>
-            <div className="flex items-center justify-between mb-3"><k.icon size={20} style={{ color: k.color }} /></div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 700, color: "var(--text)" }}>{k.value}</div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{k.label}</div>
+          <Card key={k.label} className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{k.label}</p>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className="text-3xl font-extrabold text-slate-800 tracking-tight">{k.value}</span>
+                <span className="text-xs font-medium text-slate-400">{k.unit}</span>
+              </div>
+            </div>
+            <div className={`p-3 rounded-2xl ${k.bg}`}>
+              <k.icon className={`w-6 h-6 ${k.color}`} />
+            </div>
           </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <Card style={{ padding: 20 }}>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>สถานะความพร้อมของรถ</div>
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="p-5">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">สถานะความพร้อมของรถ</h3>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={statusData} layout="vertical" margin={{ left: 0, right: 20 }}>
+            <BarChart data={statusData} layout="vertical" margin={{ left: -20, right: 20 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#8FA0B3", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#1A222C", border: "1px solid #2B3644", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#E8EDF3" }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>{statusData.map((d, i) => <Cell key={i} fill={d.color} />)}</Bar>
+              <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: "#FFFFFF", borderRadius: 8, borderColor: "#E2E8F0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} cursor={{ fill: "rgba(0,0,0,0.02)" }} />
+              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={24}>
+                {statusData.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>ค่าใช้จ่ายซ่อมบำรุงสะสมทั้งหมด: <span style={{ color: "var(--accent-frost)", fontWeight: 700 }}>{fmtMoney(totalSpent)} บาท</span></div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+            <span className="text-slate-500">ค่าใช้จ่ายซ่อมบำรุงสะสม:</span>
+            <span className="font-bold text-sky-700 text-sm">{fmtMoney(totalSpent)} ฿</span>
+          </div>
         </Card>
 
-        <Card style={{ padding: 20, gridColumn: "span 2 / span 2" }}>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>ค่าใช้จ่ายซ่อมบำรุงรายเดือน (บาท)</div>
+        <Card className="p-5 lg:col-span-2">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">ค่าใช้จ่ายซ่อมบำรุงรายเดือน (บาท)</h3>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={monthlyCost}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2B3644" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#8FA0B3", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#8FA0B3", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => `${fmtMoney(v)} บาท`} contentStyle={{ background: "#1A222C", border: "1px solid #2B3644", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#E8EDF3" }} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-              <Bar dataKey="cost" radius={[6, 6, 0, 0]} fill="#45B8C8" barSize={28} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => [`${fmtMoney(v)} บาท`, "ค่าใช้จ่าย"]} contentStyle={{ backgroundColor: "#FFFFFF", borderRadius: 8, borderColor: "#E2E8F0" }} />
+              <Bar dataKey="cost" fill="#0284C7" radius={[4, 4, 0, 0]} barSize={32} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><AlertTriangle size={16} style={{ color: "#F0A94E" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>รายการที่ใกล้/เกินกำหนด ({alerts.length})</span></div>
-          <div className="flex flex-col gap-2" style={{ maxHeight: 320, overflowY: "auto" }}>
-            {alerts.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรายการที่ต้องดำเนินการตอนนี้</p>}
-            {alerts.map((a, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
+      {/* Action Alerts & Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Alerts */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <ShieldAlert size={18} className="text-amber-500" />
+              กำหนดการที่ต้องดำเนินการ ({alerts.length})
+            </h3>
+          </div>
+          <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+            {alerts.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-8">ไม่มีรายการแจ้งเตือนในขณะนี้</p>
+            ) : (
+              alerts.map((a, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 transition-colors border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <PlateBadge plate={a.plate} />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{a.label}</p>
+                      <p className="text-[11px] text-slate-500">{a.brand} {a.model}</p>
+                    </div>
+                  </div>
+                  <DueChip status={a.status} daysLeft={a.daysLeft} />
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+
+        {/* Recent Repairs */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <Wrench size={18} className="text-sky-600" />
+              ประวัติการซ่อมบำรุงล่าสุด
+            </h3>
+          </div>
+          <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+            {recentRepairs.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-8">ไม่มีประวัติการซ่อมบำรุง</p>
+            ) : (
+              recentRepairs.map((r) => (
+                <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 transition-colors border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <PlateBadge plate={r.plate} />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{r.description}</p>
+                      <p className="text-[11px] text-slate-500">{fmtDate(r.date)} • {r.garage}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">{fmtMoney(r.cost)} ฿</span>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   VEHICLES LIST VIEW
+---------------------------------------------------------------- */
+
+function VehiclesList({ vehicles, onAdd, onEdit, onDelete, onAddRepair }) {
+  const [search, setSearch] = useState("");
+  const [filterTemp, setFilterTemp] = useState("all");
+
+  const filtered = vehicles.filter((v) => {
+    const matchSearch = (v.id + v.brand + v.model + v.driver).toLowerCase().includes(search.toLowerCase());
+    const matchTemp = filterTemp === "all" || v.temp === filterTemp;
+    return matchSearch && matchTemp;
+  });
+
+  return (
+    <div className="space-y-6">
+      <SectionTitle 
+        icon={Truck} 
+        sub="จัดการข้อมูลรถบรรทุก กำหนดการ PM และวันหมดอายุเอกสาร"
+        action={
+          <button onClick={onAdd} className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm rounded-xl transition-all shadow-sm">
+            <Plus size={16} /> เพิ่มรถคันใหม่
+          </button>
+        }
+      >
+        รายการรถบรรทุกทั้งหมด ({vehicles.length})
+      </SectionTitle>
+
+      {/* Filters */}
+      <Card className="p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input 
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 outline-none focus:border-sky-500" 
+            placeholder="ค้นหา ทะเบียน, ยี่ห้อ, คนขับ..." 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+          />
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+          {["all", "freezer", "chiller", "ambient"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setFilterTemp(t)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                filterTemp === t 
+                  ? 'bg-slate-800 text-white' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {t === "all" ? "ทั้งหมด" : TEMP_META[t].label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Table Card */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
+              <tr>
+                <th className="p-4">ทะเบียน / รถ</th>
+                <th className="p-4">ประเภทตู้</th>
+                <th className="p-4">สถานะ</th>
+                <th className="p-4">คนขับ</th>
+                <th className="p-4">PM เครื่องยนต์</th>
+                <th className="p-4">PM ตู้เย็น</th>
+                <th className="p-4">ภาษี/พ.ร.บ.</th>
+                <th className="p-4 text-right">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((v) => (
+                <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <PlateBadge plate={v.id} />
+                      <div>
+                        <p className="font-bold text-slate-800">{v.brand} {v.model}</p>
+                        <p className="text-[11px] text-slate-400">ปี {v.year}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-4"><TempChip temp={v.temp} /></td>
+                  <td className="p-4"><StatusChip status={v.status} reason={v.reason} /></td>
+                  <td className="p-4 font-medium text-slate-700">{v.driver}</td>
+                  <td className="p-4"><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
+                  <td className="p-4"><DueChip status={v.coolingPm.status} daysLeft={v.coolingPm.daysLeft} /></td>
+                  <td className="p-4"><DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} /></td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => onAddRepair(v.id)} title="บันทึกการซ่อม" className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors">
+                        <Wrench size={15} />
+                      </button>
+                      <button onClick={() => onEdit(v)} title="แก้ไข" className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => onDelete(v.id)} title="ลบ" className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   REPAIRS LIST VIEW
+---------------------------------------------------------------- */
+
+function RepairsList({ repairs, vehicles, onAdd, onEdit, onDelete }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = repairs.filter((r) => 
+    (r.plate + r.description + r.garage + r.type).toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <SectionTitle 
+        icon={Wrench} 
+        sub="ประวัติค่าใช้จ่ายและรายการซ่อมบำรุงทั้งหมดในระบบ"
+        action={
+          <button onClick={() => onAdd()} className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm rounded-xl transition-all shadow-sm">
+            <Plus size={16} /> บันทึกงานซ่อมใหม่
+          </button>
+        }
+      >
+        ประวัติการซ่อมบำรุง ({repairs.length})
+      </SectionTitle>
+
+      <Card className="p-4 flex gap-3 items-center">
+        <Search size={16} className="text-slate-400" />
+        <input 
+          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-sky-500" 
+          placeholder="ค้นหาทะเบียน, รายละเอียด, ประเภทงาน, อู่ซ่อม..." 
+          value={search} 
+          onChange={(e) => setSearch(e.target.value)} 
+        />
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
+              <tr>
+                <th className="p-4">วันที่</th>
+                <th className="p-4">ทะเบียนรถ</th>
+                <th className="p-4">ประเภทงาน</th>
+                <th className="p-4">รายละเอียด</th>
+                <th className="p-4">ศูนย์บริการ / อู่</th>
+                <th className="p-4">ค่าใช้จ่าย</th>
+                <th className="p-4">สถานะ</th>
+                <th className="p-4 text-right">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="p-4 whitespace-nowrap font-medium text-slate-700">{fmtDate(r.date)}</td>
+                  <td className="p-4"><PlateBadge plate={r.plate} /></td>
+                  <td className="p-4"><span className="px-2 py-1 rounded bg-slate-100 font-semibold text-slate-700">{r.type}</span></td>
+                  <td className="p-4 font-semibold text-slate-800">{r.description}</td>
+                  <td className="p-4 text-slate-500">{r.garage}</td>
+                  <td className="p-4 font-bold text-sky-700">{fmtMoney(r.cost)} ฿</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                      r.status === 'เสร็จสิ้น' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                    }`}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => onEdit(r)} title="แก้ไข" className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => onDelete(r.id)} title="ลบ" className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   DRIVERS LIST VIEW
+---------------------------------------------------------------- */
+
+function DriversList({ drivers, vehicles, onAdd, onEdit, onDelete }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = drivers.filter((d) => 
+    (d.name + d.license + d.vehicle + d.phone).toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <SectionTitle 
+        icon={User} 
+        sub="จัดการรายชื่อพนักงานขับรถ ใบอนุญาต และการมอบหมายรถประจำ"
+        action={
+          <button onClick={onAdd} className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm rounded-xl transition-all shadow-sm">
+            <Plus size={16} /> เพิ่มพนักงานใหม่
+          </button>
+        }
+      >
+        พนักงานขับรถ ({drivers.length})
+      </SectionTitle>
+
+      <Card className="p-4 flex gap-3 items-center">
+        <Search size={16} className="text-slate-400" />
+        <input 
+          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-sky-500" 
+          placeholder="ค้นหาชื่อ, เลขใบขับขี่, เบอร์โทร..." 
+          value={search} 
+          onChange={(e) => setSearch(e.target.value)} 
+        />
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((d) => (
+          <Card key={d.id} className="p-5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex items-center gap-3">
-                  <PlateBadge plate={a.plate} />
+                  <div className="w-10 h-10 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 font-bold">
+                    <User size={20} />
+                  </div>
                   <div>
-                    <div style={{ fontSize: 12, color: "var(--text)" }}>{a.label}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{a.brand} {a.model}</div>
+                    <h4 className="font-bold text-slate-800 text-sm">{d.name}</h4>
+                    <p className="text-xs text-slate-400">ประสบการณ์ {d.years} ปี</p>
                   </div>
                 </div>
-                <DueChip status={a.status} daysLeft={a.daysLeft} />
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                  ใบอนุญาต {d.license_type}
+                </span>
               </div>
-            ))}
-          </div>
-        </Card>
 
-        <Card style={{ padding: 20 }}>
-          <div className="flex items-center gap-2 mb-3"><Wrench size={16} style={{ color: "#45B8C8" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>ประวัติการซ่อมล่าสุด</span></div>
-          <div className="flex flex-col gap-2">
-            {recentRepairs.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ยังไม่มีประวัติการซ่อม</p>}
-            {recentRepairs.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
-                <div><div style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{r.plate} · {r.type}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{r.description}</div></div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</div>
-                  <div style={{ fontSize: 12, color: "var(--accent-frost)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</div>
+              <div className="space-y-2 my-4 pt-3 border-t border-slate-100 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span className="text-slate-400">เลขที่ใบขับขี่:</span>
+                  <span className="font-mono font-semibold">{d.license}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span className="text-slate-400">วันหมดอายุ:</span>
+                  <span>{fmtDate(d.expiry)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span className="text-slate-400">เบอร์โทรศัพท์:</span>
+                  <span className="font-semibold text-slate-700">{d.phone || "-"}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 pt-1">
+                  <span className="text-slate-400">ประจำรถ:</span>
+                  {d.vehicle === "สำรอง" ? (
+                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold text-[11px]">พนักงานสำรอง</span>
+                  ) : (
+                    <PlateBadge plate={d.vehicle} />
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        </Card>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => onEdit(d)} className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition-colors">
+                แก้ไข
+              </button>
+              <button onClick={() => onDelete(d.id)} className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-xs font-semibold hover:bg-rose-50 transition-colors">
+                ลบ
+              </button>
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------
-   VEHICLES VIEW
+   MAIN APPLICATION CONTAINER (Layout & Navigation)
 ---------------------------------------------------------------- */
 
-function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepair, onUpdateRepair, onDeleteRepair }) {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
-  const [formState, setFormState] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [repairForm, setRepairForm] = useState(null);
-  const [deleteRepairTarget, setDeleteRepairTarget] = useState(null);
-
-  const filtered = vehicles.filter((v) => v.id.includes(query) || v.brand.toLowerCase().includes(query.toLowerCase()) || v.model.toLowerCase().includes(query.toLowerCase()));
-  const selVehicle = vehicles.find((v) => v.id === selected);
-  const selRepairs = selVehicle ? repairs.filter((r) => r.plate === selVehicle.id).sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
-  const selTotalCost = selRepairs.reduce((s, r) => s + Number(r.cost || 0), 0);
-
-  const groupedByMonth = useMemo(() => {
-    const map = {};
-    selRepairs.forEach((r) => {
-      const d = new Date(r.date);
-      const key = `${THAI_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`;
-      if (!map[key]) map[key] = [];
-      map[key].push(r);
-    });
-    return map;
-  }, [selRepairs]);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <SectionTitle icon={Truck} sub="สเปครถ กำหนดการบำรุงรักษา และประวัติการซ่อมรายทะเบียน">รถทั้งหมด</SectionTitle>
-        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#0F1620", fontSize: 13, fontWeight: 700, height: 38 }}>
-          <Plus size={16} />เพิ่มรถคันใหม่
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center gap-2 rounded-lg px-3 py-2 flex-1 max-w-sm" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-          <Search size={15} style={{ color: "var(--text-muted)" }} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาทะเบียน / ยี่ห้อ / รุ่น" style={{ background: "transparent", outline: "none", color: "var(--text)", fontSize: 13, width: "100%" }} />
-        </div>
-      </div>
-
-      <Card style={{ overflow: "hidden", marginBottom: selVehicle ? 20 : 0 }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
-            <thead>
-              <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "สถานะรถ", "PM เครื่องยนต์", "คนขับ", "จัดการ", ""].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((v) => (
-                <tr key={v.id} style={{ borderTop: "1px solid var(--border)", background: selected === v.id ? "rgba(69,184,200,0.08)" : "transparent" }}>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><PlateBadge plate={v.id} /></td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.brand} {v.model} <span style={{ color: "var(--text-muted)" }}>'{String(v.year).slice(2)}</span></td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><TempChip temp={v.temp} /></td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><StatusChip status={v.status} reason={v.reason} /></td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.driver}</td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setFormState(v)} title="แก้ไข" style={iconBtnStyle}><Pencil size={15} /></button>
-                      <button onClick={() => setDeleteTarget(v)} title="ลบ" style={{ ...iconBtnStyle, color: "#E4584F" }}><Trash2 size={15} /></button>
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>
-                    <ChevronRight size={16} style={{ color: "var(--text-muted)", transform: selected === v.id ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {selVehicle && (
-        <Card style={{ padding: 22 }}>
-          <div className="flex items-start justify-between mb-5">
-            <div className="flex items-center gap-4">
-              <PlateBadge plate={selVehicle.id} size="lg" />
-              <div>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text)" }}>{selVehicle.brand} {selVehicle.model} · {selVehicle.year}</div>
-                <div className="flex items-center gap-2 mt-1"><TempChip temp={selVehicle.temp} /><StatusChip status={selVehicle.status} reason={selVehicle.reason} /></div>
-              </div>
-            </div>
-            <button onClick={() => setSelected(null)} style={{ color: "var(--text-muted)" }}><X size={18} /></button>
-          </div>
-
-          {selVehicle.status === "not_ready" && selVehicle.reason && (
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-5" style={{ background: "rgba(228,88,79,0.1)", border: "1px solid #E4584F55" }}>
-              <AlertTriangle size={14} style={{ color: "#E4584F" }} /><span style={{ fontSize: 13, color: "#E4584F" }}>{selVehicle.reason}</span>
-            </div>
-          )}
-
-          <SubHeading>สเปครถ</SubHeading>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ยี่ห้อเครื่องเย็น</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.cooling_brand || "-"}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>จำนวนล้อ</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.wheels || "-"} ล้อ</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ความยาว</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.length_m || "-"} ม.</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ถังน้ำมัน</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.fuel_tank_liters || "-"} ลิตร</div></div>
-          </div>
-
-          <SubHeading>กำหนดการบำรุงรักษา</SubHeading>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>PM เครื่องยนต์</div>
-              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.pm.next)}</div>
-              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.pm.status} daysLeft={selVehicle.pm.daysLeft} /></div>
-            </div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>PM ตู้เย็น</div>
-              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.coolingPm.next)}</div>
-              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.coolingPm.status} daysLeft={selVehicle.coolingPm.daysLeft} /></div>
-            </div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>คาลิเบรทตู้เย็น</div>
-              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.calibration.next)}</div>
-              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.calibration.status} daysLeft={selVehicle.calibration.daysLeft} /></div>
-            </div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ภาษี/พ.ร.บ.</div>
-              <div style={{ fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.tax_expiry)}</div>
-              <div style={{ marginTop: 4 }}><DueChip status={selVehicle.tax.status} daysLeft={selVehicle.tax.daysLeft} /></div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>เปลี่ยนยางล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.tire_changed)}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>เปลี่ยนแบตล่าสุด</div><div style={{ fontSize: 13, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>{fmtDate(selVehicle.battery_changed)}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>คนขับประจำ</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.driver}</div></div>
-            <div className="rounded-lg px-3 py-3" style={{ background: "rgba(69,184,200,0.1)", border: "1px solid #45B8C855" }}><div style={{ fontSize: 11, color: "var(--accent-frost)" }}>ค่าซ่อมสะสมทั้งหมด</div><div style={{ fontSize: 15, color: "var(--accent-frost)", fontWeight: 700, marginTop: 2 }}>{fmtMoney(selTotalCost)} บ.</div></div>
-          </div>
-
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><ClipboardList size={15} style={{ color: "var(--accent-frost)" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>ประวัติการซ่อม ({selRepairs.length} รายการ)</span></div>
-            <button onClick={() => setRepairForm("add")} className="flex items-center gap-1 rounded-lg px-3 py-1.5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--accent-frost)", fontSize: 12, fontWeight: 600 }}>
-              <Plus size={14} />เพิ่มรายการซ่อม
-            </button>
-          </div>
-
-          {Object.keys(groupedByMonth).length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)" }}>ยังไม่มีประวัติการซ่อมสำหรับคันนี้</p>}
-
-          <div className="flex flex-col gap-5">
-            {Object.entries(groupedByMonth).map(([month, items]) => (
-              <div key={month}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-frost)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>{month} · รวม {fmtMoney(items.reduce((s, i) => s + i.cost, 0))} บาท</div>
-                <div className="flex flex-col gap-2">
-                  {items.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
-                      <div className="flex items-center gap-3">
-                        <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(69,184,200,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
-                        <div><div style={{ fontSize: 13, color: "var(--text)" }}>{r.description}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · {r.status}</div></div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</div>
-                          <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => setRepairForm(r)} title="แก้ไข" style={iconBtnStyle}><Pencil size={14} /></button>
-                          <button onClick={() => setDeleteRepairTarget(r)} title="ลบ" style={{ ...iconBtnStyle, color: "#E4584F" }}><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {formState && (
-        <VehicleFormModal
-          initial={formState === "add" ? null : formState}
-          existingPlates={vehicles.map((v) => v.id)}
-          onClose={() => setFormState(null)}
-          onSave={async (data) => { if (data.oldId) await onUpdate(data.oldId, data); else await onAdd(data); }}
-        />
-      )}
-
-      {deleteTarget && (
-        <ConfirmDelete
-          label={`ต้องการลบรถทะเบียน ${deleteTarget.id} ใช่หรือไม่? ประวัติการซ่อมของรถคันนี้จะถูกลบไปด้วย`}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={async () => { await onDelete(deleteTarget.id); if (selected === deleteTarget.id) setSelected(null); setDeleteTarget(null); }}
-        />
-      )}
-
-      {repairForm && selVehicle && (
-        <RepairFormModal
-          plate={selVehicle.id}
-          initial={repairForm === "add" ? null : repairForm}
-          onClose={() => setRepairForm(null)}
-          onSave={async (data) => { if (repairForm === "add") await onAddRepair(data); else await onUpdateRepair(data); }}
-        />
-      )}
-
-      {deleteRepairTarget && (
-        <ConfirmDelete
-          label={`ต้องการลบรายการซ่อม "${deleteRepairTarget.description}" ใช่หรือไม่?`}
-          onCancel={() => setDeleteRepairTarget(null)}
-          onConfirm={async () => { await onDeleteRepair(deleteRepairTarget.id); setDeleteRepairTarget(null); }}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------
-   MAINTENANCE VIEW (PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรท / ภาษี)
----------------------------------------------------------------- */
-
-function MaintenanceView({ vehicles }) {
-  const rows = useMemo(() => {
-    return [...vehicles].map((v) => {
-      const worst = Math.min(
-        v.pm.daysLeft ?? Infinity,
-        v.coolingPm.daysLeft ?? Infinity,
-        v.calibration.daysLeft ?? Infinity,
-        v.tax.daysLeft ?? Infinity
-      );
-      return { ...v, worst };
-    }).sort((a, b) => a.worst - b.worst);
-  }, [vehicles]);
-
-  return (
-    <div>
-      <SectionTitle icon={Calendar} sub="รวม PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรทตู้เย็น / ภาษี-พ.ร.บ. ของรถทุกคันไว้ที่เดียว เรียงตามรายการที่ใกล้ครบกำหนดที่สุด">
-        กำหนดการบำรุงรักษา
-      </SectionTitle>
-      <div className="flex items-center gap-4 mb-4 flex-wrap" style={{ fontSize: 12, color: "var(--text-muted)" }}>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#E4584F", display: "inline-block" }} /> เกินกำหนด</span>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#F0A94E", display: "inline-block" }} /> ใกล้ครบกำหนด</span>
-        <span className="flex items-center gap-1"><span style={{ width: 8, height: 8, borderRadius: 99, background: "#8FA0B3", display: "inline-block" }} /> ปกติ</span>
-      </div>
-      <Card style={{ overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
-            <thead>
-              <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น", "ภาษี/พ.ร.บ."].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((v) => (
-                <tr key={v.id} style={{ borderTop: "1px solid var(--border)" }}>
-                  <td style={{ padding: "10px 14px" }}><PlateBadge plate={v.id} /></td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{v.brand} {v.model}</td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} />
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.pm.next)}</div>
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <DueChip status={v.coolingPm.status} daysLeft={v.coolingPm.daysLeft} />
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.coolingPm.next)}</div>
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <DueChip status={v.calibration.status} daysLeft={v.calibration.daysLeft} />
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.calibration.next)}</div>
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} />
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.tax_expiry)}</div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------
-   REPAIRS LOG VIEW (ประวัติการซ่อมทั้งหมด - ทุกคันรวมกัน)
----------------------------------------------------------------- */
-
-function RepairsLogView({ vehicles, repairs }) {
-  const [plateFilter, setPlateFilter] = useState("all");
-  const [monthFilter, setMonthFilter] = useState("all");
-  const [query, setQuery] = useState("");
-  const [sortBy, setSortBy] = useState("date_desc");
-
-  const monthOptions = useMemo(() => {
-    const set = new Set();
-    repairs.forEach((r) => {
-      const d = new Date(r.date);
-      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    });
-    return Array.from(set).sort().reverse();
-  }, [repairs]);
-
-  const filtered = useMemo(() => {
-    let list = [...repairs];
-    if (plateFilter !== "all") list = list.filter((r) => r.plate === plateFilter);
-    if (monthFilter !== "all") {
-      list = list.filter((r) => {
-        const d = new Date(r.date);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        return key === monthFilter;
-      });
-    }
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      list = list.filter((r) => r.description.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.plate.toLowerCase().includes(q) || (r.garage || "").toLowerCase().includes(q));
-    }
-    if (sortBy === "date_desc") list.sort((a, b) => new Date(b.date) - new Date(a.date));
-    else if (sortBy === "date_asc") list.sort((a, b) => new Date(a.date) - new Date(b.date));
-    else if (sortBy === "cost_desc") list.sort((a, b) => b.cost - a.cost);
-    else if (sortBy === "cost_asc") list.sort((a, b) => a.cost - b.cost);
-    return list;
-  }, [repairs, plateFilter, monthFilter, query, sortBy]);
-
-  const totalFiltered = filtered.reduce((s, r) => s + Number(r.cost || 0), 0);
-
-  const monthLabel = (key) => {
-    const [y, m] = key.split("-");
-    return `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
-  };
-
-  return (
-    <div>
-      <SectionTitle icon={ClipboardList} sub="รวมประวัติการซ่อมของรถทุกคัน กรองดูตามรถ / เดือน / คำค้นหาได้">
-        ประวัติการซ่อมทั้งหมด
-      </SectionTitle>
-
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <select value={plateFilter} onChange={(e) => setPlateFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 140 }}>
-          <option value="all">ทุกคัน</option>
-          {vehicles.map((v) => <option key={v.id} value={v.id}>{v.id} · {v.brand} {v.model}</option>)}
-        </select>
-        <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 140 }}>
-          <option value="all">ทุกเดือน</option>
-          {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
-        </select>
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 160 }}>
-          <option value="date_desc">วันที่ล่าสุดก่อน</option>
-          <option value="date_asc">วันที่เก่าสุดก่อน</option>
-          <option value="cost_desc">ค่าใช้จ่ายมากไปน้อย</option>
-          <option value="cost_asc">ค่าใช้จ่ายน้อยไปมาก</option>
-        </select>
-        <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", minWidth: 200, flex: 1 }}>
-          <Search size={15} style={{ color: "var(--text-muted)" }} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหา เช่น ยาง, เบรก, ชื่ออู่" style={{ background: "transparent", outline: "none", color: "var(--text)", fontSize: 13, width: "100%" }} />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mb-3 rounded-lg px-4 py-2.5" style={{ background: "rgba(69,184,200,0.08)", border: "1px solid #45B8C845" }}>
-        <span style={{ fontSize: 13, color: "var(--text)" }}>พบ {filtered.length} รายการ</span>
-        <span style={{ fontSize: 13, color: "var(--accent-frost)", fontWeight: 700 }}>รวม {fmtMoney(totalFiltered)} บาท</span>
-      </div>
-
-      <Card style={{ overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
-            <thead>
-              <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "วันที่", "ประเภท", "รายละเอียด", "อู่/ศูนย์บริการ", "สถานะ", "ค่าใช้จ่าย"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} style={{ borderTop: "1px solid var(--border)" }}>
-                  <td style={{ padding: "10px 14px" }}><PlateBadge plate={r.plate} /></td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(69,184,200,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
-                  </td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{r.description}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#5FBE84" : "#F0A94E" }}>{r.status}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรายการซ่อมที่ตรงกับตัวกรอง</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------
-   DRIVERS VIEW
----------------------------------------------------------------- */
-
-function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
-  const [formState, setFormState] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <SectionTitle icon={User} sub="ข้อมูลพนักงานขับรถ ใบขับขี่ และรถที่รับผิดชอบ">พนักงานขับรถ</SectionTitle>
-        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#0F1620", fontSize: 13, fontWeight: 700, height: 38 }}>
-          <Plus size={16} />เพิ่มพนักงาน
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {drivers.map((d) => {
-          const expDays = daysBetween(TODAY, new Date(d.expiry));
-          const expSoon = expDays <= 60;
-          return (
-            <Card key={d.id} style={{ padding: 18 }}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center rounded-full" style={{ width: 42, height: 42, background: "rgba(69,184,200,0.15)", color: "var(--accent-frost)" }}><User size={20} /></div>
-                  <div><div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{d.name}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{d.years} ปีประสบการณ์</div></div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setFormState(d)} title="แก้ไข" style={iconBtnStyle}><Pencil size={14} /></button>
-                  <button onClick={() => setDeleteTarget(d)} title="ลบ" style={{ ...iconBtnStyle, color: "#E4584F" }}><Trash2 size={14} /></button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 mb-4">
-                <div className="flex items-center gap-2" style={{ fontSize: 13, color: "var(--text-muted)" }}><CreditCard size={14} /><span>ใบขับขี่ {d.license_type} · {d.license}</span></div>
-                <div className="flex items-center gap-2" style={{ fontSize: 13, color: "var(--text-muted)" }}><Phone size={14} /><span>{d.phone || "-"}</span></div>
-              </div>
-              <div className="flex items-center justify-between rounded-lg px-3 py-2 mb-3" style={{ background: "var(--surface-2)" }}>
-                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>วันหมดอายุใบขับขี่</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: expSoon ? "#F0A94E" : "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(d.expiry)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>รถที่รับผิดชอบ</span>
-                {d.vehicle === "สำรอง" ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>พนักงานสำรอง</span> : <PlateBadge plate={d.vehicle} />}
-              </div>
-            </Card>
-          );
-        })}
-        {drivers.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)" }}>ยังไม่มีข้อมูลพนักงานขับรถ</p>}
-      </div>
-
-      {formState && (
-        <DriverFormModal
-          initial={formState === "add" ? null : formState}
-          vehiclePlates={vehiclePlates}
-          onClose={() => setFormState(null)}
-          onSave={async (data) => { if (formState === "add") await onAdd(data); else await onUpdate(data.id, data); }}
-        />
-      )}
-
-      {deleteTarget && (
-        <ConfirmDelete
-          label={`ต้องการลบข้อมูลพนักงาน "${deleteTarget.name}" ใช่หรือไม่?`}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={async () => { await onDelete(deleteTarget.id); setDeleteTarget(null); }}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------
-   APP SHELL
----------------------------------------------------------------- */
-
-const TABS = [
-  { key: "dashboard", label: "แดชบอร์ด", icon: Gauge },
-  { key: "vehicles", label: "รถทั้งหมด", icon: Truck },
-  { key: "maintenance", label: "บำรุงรักษา", icon: Settings2 },
-  { key: "repairlog", label: "ประวัติการซ่อม", icon: ClipboardList },
-  { key: "drivers", label: "พนักงานขับรถ", icon: User },
-];
-
-export default function FleetApp({ user }) {
+export default function FleetApp() {
   const [tab, setTab] = useState("dashboard");
   const [vehicles, setVehicles] = useState([]);
   const [repairs, setRepairs] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => { loadAll(); }, []);
+  // Modal States
+  const [vehicleModal, setVehicleModal] = useState({ open: false, initial: null });
+  const [repairModal, setRepairModal] = useState({ open: false, plate: "", initial: null });
+  const [driverModal, setDriverModal] = useState({ open: false, initial: null });
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, label: "", onConfirm: null });
 
-  async function loadAll() {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const [v, r, d] = await Promise.all([fetchVehicles(), fetchRepairs(), fetchDrivers()]);
-      setVehicles(v);
-      setRepairs(r);
-      setDrivers(d);
-      setErrorMsg("");
-    } catch (e) {
-      setErrorMsg("โหลดข้อมูลไม่สำเร็จ: " + (e.message || "unknown error"));
+      const [vData, rData, dData] = await Promise.all([
+        fetchVehicles(),
+        fetchRepairs(),
+        fetchDrivers(),
+      ]);
+      setVehicles(vData.map(computeVehicle));
+      setRepairs(rData);
+      setDrivers(dData);
+    } catch (err) {
+      console.error("Error loading data:", err);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  const computedVehicles = useMemo(() => vehicles.map(computeVehicle), [vehicles]);
+  useEffect(() => { loadData(); }, []);
 
-  async function handleAddVehicle(v) {
-    const { oldId, ...clean } = v;
-    const { error } = await supabase.from("vehicles").insert(clean);
+  // Handlers for Vehicle CRUD
+  const handleSaveVehicle = async (data) => {
+    if (data.oldId && data.oldId !== data.id) {
+      await supabase.from("vehicles").delete().eq("id", data.oldId);
+    }
+    const payload = { ...data };
+    delete payload.oldId;
+    const { error } = await supabase.from("vehicles").upsert(payload);
     if (error) throw error;
-    await loadAll();
-  }
-  async function handleUpdateVehicle(oldId, updates) {
-    const { oldId: _drop, ...clean } = updates;
-    const { error } = await supabase.from("vehicles").update(clean).eq("id", oldId);
-    if (error) throw error;
-    await loadAll();
-  }
-  async function handleDeleteVehicle(plate) {
-    const { error } = await supabase.from("vehicles").delete().eq("id", plate);
-    if (error) throw error;
-    await supabase.from("drivers").update({ vehicle: "สำรอง" }).eq("vehicle", plate);
-    await loadAll();
-  }
+    await loadData();
+  };
 
-  async function handleAddRepair(r) {
-    const { id, ...clean } = r;
-    const { error } = await supabase.from("repairs").insert(clean);
-    if (error) throw error;
-    await loadAll();
-  }
-  async function handleUpdateRepair(r) {
-    const { id, ...clean } = r;
-    const { error } = await supabase.from("repairs").update(clean).eq("id", id);
-    if (error) throw error;
-    await loadAll();
-  }
-  async function handleDeleteRepair(id) {
-    const { error } = await supabase.from("repairs").delete().eq("id", id);
-    if (error) throw error;
-    await loadAll();
-  }
+  const handleDeleteVehicle = (id) => {
+    setDeleteConfirm({
+      open: true,
+      label: `คุณต้องการลบรถทะเบียน ${id} และข้อมูลที่เกี่ยวข้องใช่หรือไม่?`,
+      onConfirm: async () => {
+        await supabase.from("vehicles").delete().eq("id", id);
+        setDeleteConfirm({ open: false });
+        await loadData();
+      }
+    });
+  };
 
-  async function handleAddDriver(d) {
-    const { id, ...clean } = d;
-    const { error } = await supabase.from("drivers").insert(clean);
+  // Handlers for Repair CRUD
+  const handleSaveRepair = async (data) => {
+    const { error } = await supabase.from("repairs").upsert(data);
     if (error) throw error;
-    await loadAll();
-  }
-  async function handleUpdateDriver(id, updates) {
-    const { id: _drop, ...clean } = updates;
-    const { error } = await supabase.from("drivers").update(clean).eq("id", id);
-    if (error) throw error;
-    await loadAll();
-  }
-  async function handleDeleteDriver(id) {
-    const { error } = await supabase.from("drivers").delete().eq("id", id);
-    if (error) throw error;
-    await loadAll();
-  }
+    await loadData();
+  };
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
+  const handleDeleteRepair = (id) => {
+    setDeleteConfirm({
+      open: true,
+      label: "คุณต้องการลบรายการซ่อมนี้ใช่หรือไม่?",
+      onConfirm: async () => {
+        await supabase.from("repairs").delete().eq("id", id);
+        setDeleteConfirm({ open: false });
+        await loadData();
+      }
+    });
+  };
+
+  // Handlers for Driver CRUD
+  const handleSaveDriver = async (data) => {
+    const { error } = await supabase.from("drivers").upsert(data);
+    if (error) throw error;
+    await loadData();
+  };
+
+  const handleDeleteDriver = (id) => {
+    setDeleteConfirm({
+      open: true,
+      label: "คุณต้องการลบข้อมูลพนักงานขับรถคนนี้ใช่หรือไม่?",
+      onConfirm: async () => {
+        await supabase.from("drivers").delete().eq("id", id);
+        setDeleteConfirm({ open: false });
+        await loadData();
+      }
+    });
+  };
+
+  const navItems = [
+    { id: "dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
+    { id: "vehicles", label: "รายการรถบรรทุก", icon: Truck },
+    { id: "repairs", label: "การซ่อมบำรุง", icon: Wrench },
+    { id: "drivers", label: "พนักงานขับรถ", icon: User },
+  ];
 
   return (
-    <div style={{
-      "--bg": "#10151C", "--surface": "#1A222C", "--surface-2": "#212B37", "--border": "#2B3644",
-      "--text": "#E8EDF3", "--text-muted": "#8FA0B3", "--accent-frost": "#45B8C8",
-      background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif",
-    }}>
-      <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(16,21,28,0.9)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
-        <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg" style={{ width: 42, height: 42, background: "#FFFFFF", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 15, fontStyle: "italic", letterSpacing: -0.5 }}>
-                <span style={{ color: "#E4432E" }}>cp</span><span style={{ color: "#4C9A3D" }}>ram</span>
-              </span>
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 antialiased flex flex-col md:flex-row">
+      {/* Sidebar Navigation */}
+      <aside className="w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0 p-4 flex md:flex-col justify-between border-r border-slate-800">
+        <div>
+          <div className="flex items-center gap-3 px-3 py-4 mb-6 border-b border-slate-800">
+            <div className="p-2 rounded-xl bg-sky-500 text-white">
+              <Truck size={22} />
             </div>
             <div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: 0.3 }}>CPRAM TRANSPORT</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
+              <h2 className="font-extrabold text-white tracking-tight text-base leading-none">CPRAM Fleet</h2>
+              <span className="text-[10px] text-slate-400 font-medium">Temperature Control</span>
             </div>
           </div>
-          <nav className="flex items-center gap-1 rounded-lg p-1 flex-wrap" style={{ background: "var(--surface-2)" }}>
-            {TABS.map((t) => {
-              const active = tab === t.key;
+
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.id;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium" style={{ color: active ? "#0F1620" : "var(--text-muted)", background: active ? "var(--accent-frost)" : "transparent", transition: "all .15s" }}>
-                  <t.icon size={15} /><span className="hidden sm:inline">{t.label}</span>
+                <button
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all ${
+                    active 
+                      ? 'bg-sky-600 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Icon size={18} />
+                  {item.label}
                 </button>
               );
             })}
           </nav>
-          <div className="flex items-center gap-3">
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }} className="hidden md:inline">{user?.email}</span>
-            <button onClick={handleSignOut} className="flex items-center gap-1 rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)", fontSize: 12 }}>
-              <LogOut size={14} />ออกจากระบบ
-            </button>
+        </div>
+
+        <div className="hidden md:block pt-4 border-t border-slate-800">
+          <div className="px-3 py-2 text-[11px] text-slate-500">
+            <p>ระบบจัดการฟลีตรถบรรทุก</p>
+            <p className="mt-0.5">v2.0 Clean Light Mode</p>
           </div>
         </div>
-      </header>
+      </aside>
 
-      <main className="max-w-7xl mx-auto px-5 py-6">
-        {errorMsg && (
-          <div style={{ marginBottom: 16, fontSize: 12, color: "#F0A94E", background: "rgba(240,169,78,0.1)", border: "1px solid #F0A94E55", borderRadius: 8, padding: "8px 12px" }}>{errorMsg}</div>
-        )}
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
         {loading ? (
-          <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "40px 0", textAlign: "center" }}>กำลังโหลดข้อมูล...</div>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
+          </div>
         ) : (
           <>
-            {tab === "dashboard" && <Dashboard vehicles={computedVehicles} repairs={repairs} />}
+            {tab === "dashboard" && <Dashboard vehicles={vehicles} repairs={repairs} />}
             {tab === "vehicles" && (
-              <VehiclesView
-                vehicles={computedVehicles} repairs={repairs}
-                onAdd={handleAddVehicle} onUpdate={handleUpdateVehicle} onDelete={handleDeleteVehicle}
-                onAddRepair={handleAddRepair} onUpdateRepair={handleUpdateRepair} onDeleteRepair={handleDeleteRepair}
+              <VehiclesList 
+                vehicles={vehicles} 
+                onAdd={() => setVehicleModal({ open: true, initial: null })}
+                onEdit={(v) => setVehicleModal({ open: true, initial: v })}
+                onDelete={handleDeleteVehicle}
+                onAddRepair={(plate) => setRepairModal({ open: true, plate, initial: null })}
               />
             )}
-            {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
-            {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} />}
+            {tab === "repairs" && (
+              <RepairsList 
+                repairs={repairs} 
+                vehicles={vehicles}
+                onAdd={() => setRepairModal({ open: true, plate: vehicles[0]?.id || "", initial: null })}
+                onEdit={(r) => setRepairModal({ open: true, plate: r.plate, initial: r })}
+                onDelete={handleDeleteRepair}
+              />
+            )}
             {tab === "drivers" && (
-              <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
+              <DriversList 
+                drivers={drivers} 
+                vehicles={vehicles}
+                onAdd={() => setDriverModal({ open: true, initial: null })}
+                onEdit={(d) => setDriverModal({ open: true, initial: d })}
+                onDelete={handleDeleteDriver}
+              />
             )}
           </>
         )}
       </main>
 
-      <footer className="max-w-7xl mx-auto px-5 py-6" style={{ color: "var(--text-muted)", fontSize: 12 }}>
-        ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM Fleet Management
-      </footer>
+      {/* Render Modals */}
+      {vehicleModal.open && (
+        <VehicleFormModal 
+          initial={vehicleModal.initial} 
+          existingPlates={vehicles.map(v => v.id)}
+          onClose={() => setVehicleModal({ open: false, initial: null })}
+          onSave={handleSaveVehicle}
+        />
+      )}
+
+      {repairModal.open && (
+        <RepairFormModal 
+          plate={repairModal.plate} 
+          initial={repairModal.initial}
+          onClose={() => setRepairModal({ open: false, plate: "", initial: null })}
+          onSave={handleSaveRepair}
+        />
+      )}
+
+      {driverModal.open && (
+        <DriverFormModal 
+          initial={driverModal.initial} 
+          vehiclePlates={vehicles.map(v => v.id)}
+          onClose={() => setDriverModal({ open: false, initial: null })}
+          onSave={handleSaveDriver}
+        />
+      )}
+
+      {deleteConfirm.open && (
+        <ConfirmDelete 
+          label={deleteConfirm.label} 
+          onConfirm={deleteConfirm.onConfirm} 
+          onCancel={() => setDeleteConfirm({ open: false })}
+        />
+      )}
     </div>
   );
 }
