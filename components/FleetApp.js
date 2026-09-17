@@ -461,6 +461,8 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
             <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
               <option value="เสร็จสิ้น">เสร็จสิ้น</option>
               <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+              <option value="จัดซื้อเปรียบเทียบราคา">จัดซื้อเปรียบเทียบราคา</option>
+               <option value="รออนุมัติPR">รออนุมัติPR</option>
             </select>
           </Field>
         </div>
