@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -32,6 +32,10 @@ function daysBetween(a, b) { return Math.round((b - a) / (1000 * 60 * 60 * 24));
 function addDays(dateStr, n) { const d = new Date(dateStr); d.setDate(d.getDate() + n); return d; }
 function fmtDate(d) { if (!d) return "-"; const date = typeof d === "string" ? new Date(d) : d; return `${date.getDate()} ${THAI_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`; }
 function fmtMoney(n) { return Number(n || 0).toLocaleString("th-TH"); }
+// cost === null หมายถึง "รอประเมินราคา"
+function isPendingCost(c) { return c === null || c === undefined; }
+function fmtCost(c) { return isPendingCost(c) ? "รอประเมินราคา" : `${fmtMoney(c)} บ.`; }
+function sumCost(list) { return list.reduce((s, r) => s + (isPendingCost(r.cost) ? 0 : Number(r.cost || 0)), 0); }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
 // คำนวณสถานะ "ครบรอบ" จากวันที่ล่าสุด + จำนวนวันต่อรอบ (ใช้กับ PM / คาลิเบรท)
@@ -190,16 +194,54 @@ function ModalShell({ title, onClose, children, width = 560 }) {
   );
 }
 
-function ConfirmDelete({ label, onConfirm, onCancel }) {
+const DELETE_PASSWORD = "500412";
+
+function ConfirmDelete({ label, onConfirm, onCancel, requirePassword = false }) {
+  const [pwd, setPwd] = useState("");
+  const [err, setErr] = useState("");
+
+  function handleConfirm() {
+    if (requirePassword) {
+      if (pwd !== DELETE_PASSWORD) {
+        setErr("รหัสผ่านไม่ถูกต้อง");
+        return;
+      }
+    }
+    onConfirm();
+  }
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, width: "100%" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.55)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, width: "100%" }}>
         <Card style={{ padding: 20 }}>
           <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} style={{ color: "#DC2626" }} /><span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>ยืนยันการลบ</span></div>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 18 }}>{label}</p>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>{label}</p>
+
+          {requirePassword && (
+            <div style={{ marginBottom: 16 }}>
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid #D9770655" }}>
+                <Lock size={14} style={{ color: "#D97706" }} />
+                <span style={{ fontSize: 12, color: "#D97706" }}>รายการนี้ต้องใส่รหัสผ่านเพื่อยืนยันการลบ</span>
+              </div>
+              <label className="flex flex-col gap-1">
+                <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>รหัสผ่านสำหรับลบข้อมูล</span>
+                <input
+                  style={inputStyle}
+                  type="password"
+                  value={pwd}
+                  autoFocus
+                  placeholder="กรอกรหัสผ่าน"
+                  onChange={(e) => { setPwd(e.target.value); setErr(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleConfirm(); }}
+                />
+              </label>
+              {err && <div style={{ fontSize: 12, color: "#DC2626", marginTop: 6 }}>{err}</div>}
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-2">
             <button onClick={onCancel} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-            <button onClick={onConfirm} style={{ background: "#DC2626", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ลบ</button>
+            <button onClick={handleConfirm} style={{ background: "#DC2626", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ลบ</button>
           </div>
         </Card>
       </div>
@@ -357,8 +399,12 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
 
 function RepairFormModal({ plate, initial, onClose, onSave }) {
   const isEdit = !!initial;
-  const [form, setForm] = useState(() => initial ? { ...initial, cost: String(initial.cost) } : {
-    date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น",
+  const [form, setForm] = useState(() => initial ? {
+    ...initial,
+    cost: initial.cost === null || initial.cost === undefined ? "" : String(initial.cost),
+    pendingEstimate: initial.cost === null || initial.cost === undefined,
+  } : {
+    date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น", pendingEstimate: false,
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -374,7 +420,8 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
       await onSave({
         id: isEdit ? initial.id : undefined,
         plate, date: form.date, type: form.type, description: form.description.trim(),
-        cost: Number(form.cost) || 0, garage: form.garage.trim() || "-", status: form.status,
+        cost: form.pendingEstimate ? null : (Number(form.cost) || 0),
+        garage: form.garage.trim() || "-", status: form.status,
       });
       onClose();
     } catch (err) {
@@ -398,7 +445,16 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
         </div>
         <Field label="รายละเอียดงานซ่อม (ทำอะไรไปบ้าง) *"><input style={inputStyle} placeholder="เช่น เปลี่ยนผ้าเบรกหน้า" value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="ค่าใช้จ่าย (บาท)"><input style={inputStyle} type="number" value={form.cost} onChange={(e) => update("cost", e.target.value)} /></Field>
+          <Field label="ค่าใช้จ่าย (บาท)">
+            <input
+              style={{ ...inputStyle, opacity: form.pendingEstimate ? 0.45 : 1 }}
+              type="number"
+              value={form.pendingEstimate ? "" : form.cost}
+              disabled={form.pendingEstimate}
+              placeholder={form.pendingEstimate ? "รอประเมินราคา" : ""}
+              onChange={(e) => update("cost", e.target.value)}
+            />
+          </Field>
           <Field label="สถานะงาน">
             <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
               <option value="เสร็จสิ้น">เสร็จสิ้น</option>
@@ -406,6 +462,11 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
             </select>
           </Field>
         </div>
+        <label className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: form.pendingEstimate ? "rgba(217,119,6,0.1)" : "var(--surface-2)", border: `1px solid ${form.pendingEstimate ? "#D9770655" : "var(--border)"}`, cursor: "pointer" }}>
+          <input type="checkbox" checked={form.pendingEstimate} onChange={(e) => update("pendingEstimate", e.target.checked)} style={{ width: 15, height: 15, accentColor: "#D97706", cursor: "pointer" }} />
+          <Hourglass size={14} style={{ color: form.pendingEstimate ? "#D97706" : "var(--text-muted)" }} />
+          <span style={{ fontSize: 13, color: form.pendingEstimate ? "#D97706" : "var(--text-muted)", fontWeight: 600 }}>ยังไม่ทราบค่าใช้จ่าย (รอประเมินราคา)</span>
+        </label>
         <Field label="อู่ / ศูนย์บริการ (ทำที่ไหน)"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
@@ -530,13 +591,20 @@ function Dashboard({ vehicles, repairs }) {
     });
   }, [repairs]);
 
-  const totalSpent = repairs.reduce((s, r) => s + Number(r.cost || 0), 0);
+  const totalSpent = sumCost(repairs);
+
+  // งานซ่อมที่กำลังดำเนินการอยู่ (ยังไม่เสร็จ)
+  const inProgress = useMemo(
+    () => repairs.filter((r) => r.status === "กำลังดำเนินการ").sort((a, b) => new Date(b.date) - new Date(a.date)),
+    [repairs]
+  );
+  const pendingEstimateCount = inProgress.filter((r) => isPendingCost(r.cost)).length;
 
   const kpis = [
     { label: "รถทั้งหมด", value: vehicles.length, icon: Truck, color: "#0E8FA0" },
     { label: "พร้อมใช้งาน", value: readyCount, icon: CheckCircle2, color: "#16A34A" },
-    { label: "ไม่พร้อมใช้งาน", value: notReadyCount, icon: AlertTriangle, color: "#DC2626" },
-    { label: "รายการต้องดำเนินการ", value: alerts.length, icon: Clock3, color: "#D97706" },
+    { label: "กำลังซ่อม", value: inProgress.length, icon: Wrench, color: "#D97706" },
+    { label: "รายการต้องดำเนินการ", value: alerts.length, icon: Clock3, color: "#DC2626" },
   ];
 
   return (
@@ -581,6 +649,43 @@ function Dashboard({ vehicles, repairs }) {
         </Card>
       </div>
 
+      <Card style={{ padding: 20, marginBottom: 16 }}>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <Wrench size={16} style={{ color: "#D97706" }} />
+            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>งานซ่อมที่กำลังดำเนินการ ({inProgress.length})</span>
+          </div>
+          {pendingEstimateCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1" style={{ background: "rgba(217,119,6,0.12)", color: "#D97706", border: "1px solid #D9770655", fontSize: 12, fontWeight: 600 }}>
+              <Hourglass size={13} />รอประเมินราคา {pendingEstimateCount} รายการ
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col gap-2" style={{ maxHeight: 300, overflowY: "auto" }}>
+          {inProgress.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีงานซ่อมที่กำลังดำเนินการอยู่ตอนนี้</p>}
+          {inProgress.map((r) => (
+            <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: "var(--surface-2)", borderLeft: `3px solid ${isPendingCost(r.cost) ? "#D97706" : "#0E8FA0"}` }}>
+              <div className="flex items-center gap-3">
+                <PlateBadge plate={r.plate} />
+                <div>
+                  <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{r.type} · {r.description}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · เริ่ม {fmtDate(r.date)}</div>
+                </div>
+              </div>
+              <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                {isPendingCost(r.cost) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-1" style={{ background: "rgba(217,119,6,0.12)", color: "#D97706", border: "1px solid #D9770655", fontSize: 11, fontWeight: 600 }}>
+                    <Hourglass size={12} />รอประเมินราคา
+                  </span>
+                ) : (
+                  <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 700 }}>{fmtMoney(r.cost)} บ.</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card style={{ padding: 20 }}>
           <div className="flex items-center gap-2 mb-3"><AlertTriangle size={16} style={{ color: "#D97706" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>รายการที่ใกล้/เกินกำหนด ({alerts.length})</span></div>
@@ -610,7 +715,7 @@ function Dashboard({ vehicles, repairs }) {
                 <div><div style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{r.plate} · {r.type}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{r.description}</div></div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</div>
-                  <div style={{ fontSize: 12, color: "var(--accent-frost)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</div>
+                  <div style={{ fontSize: 12, color: isPendingCost(r.cost) ? "#D97706" : "var(--accent-frost)", fontWeight: 600 }}>{fmtCost(r.cost)}</div>
                 </div>
               </div>
             ))}
@@ -636,7 +741,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
   const filtered = vehicles.filter((v) => v.id.includes(query) || v.brand.toLowerCase().includes(query.toLowerCase()) || v.model.toLowerCase().includes(query.toLowerCase()));
   const selVehicle = vehicles.find((v) => v.id === selected);
   const selRepairs = selVehicle ? repairs.filter((r) => r.plate === selVehicle.id).sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
-  const selTotalCost = selRepairs.reduce((s, r) => s + Number(r.cost || 0), 0);
+  const selTotalCost = sumCost(selRepairs);
 
   const groupedByMonth = useMemo(() => {
     const map = {};
@@ -775,7 +880,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
           <div className="flex flex-col gap-5">
             {Object.entries(groupedByMonth).map(([month, items]) => (
               <div key={month}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-frost)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>{month} · รวม {fmtMoney(items.reduce((s, i) => s + i.cost, 0))} บาท</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-frost)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>{month} · รวม {fmtMoney(sumCost(items))} บาท</div>
                 <div className="flex flex-col gap-2">
                   {items.map((r) => (
                     <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
@@ -786,7 +891,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                       <div className="flex items-center gap-3">
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</div>
-                          <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</div>
+                          <div style={{ fontSize: 13, color: isPendingCost(r.cost) ? "#D97706" : "var(--text)", fontWeight: 600 }}>{fmtCost(r.cost)}</div>
                         </div>
                         <div className="flex items-center gap-1">
                           <button onClick={() => setRepairForm(r)} title="แก้ไข" style={iconBtnStyle}><Pencil size={14} /></button>
@@ -813,6 +918,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
 
       {deleteTarget && (
         <ConfirmDelete
+          requirePassword
           label={`ต้องการลบรถทะเบียน ${deleteTarget.id} ใช่หรือไม่? ประวัติการซ่อมของรถคันนี้จะถูกลบไปด้วย`}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => { await onDelete(deleteTarget.id); if (selected === deleteTarget.id) setSelected(null); setDeleteTarget(null); }}
@@ -947,7 +1053,7 @@ function RepairsLogView({ vehicles, repairs }) {
     return list;
   }, [repairs, plateFilter, monthFilter, query, sortBy]);
 
-  const totalFiltered = filtered.reduce((s, r) => s + Number(r.cost || 0), 0);
+  const totalFiltered = sumCost(filtered);
 
   const monthLabel = (key) => {
     const [y, m] = key.split("-");
@@ -1007,7 +1113,7 @@ function RepairsLogView({ vehicles, repairs }) {
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{r.description}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#16A34A" : "#D97706" }}>{r.status}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(r.cost)} บ.</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: isPendingCost(r.cost) ? "#D97706" : "var(--text)", fontWeight: 600 }}>{fmtCost(r.cost)}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
@@ -1193,7 +1299,7 @@ export default function FleetApp({ user }) {
 
   return (
     <div style={{
-      "--bg": "#B0C4DE", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
+      "--bg": "#F4F6F9", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
       "--text": "#1E293B", "--text-muted": "#64748B", "--accent-frost": "#0E8FA0",
       background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif",
     }}>
