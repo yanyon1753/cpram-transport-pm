@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -79,6 +79,11 @@ async function fetchVehicles() {
 }
 async function fetchRepairs() {
   const { data, error } = await supabase.from("repairs").select("*").order("date", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+async function fetchFuelLogs() {
+  const { data, error } = await supabase.from("fuel_logs").select("*").order("date", { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -461,8 +466,6 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
             <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
               <option value="เสร็จสิ้น">เสร็จสิ้น</option>
               <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
-              <option value="จัดซื้อเปรียบเทียบราคา">จัดซื้อเปรียบเทียบราคา</option>
-               <option value="รออนุมัติPR">รออนุมัติPR</option>
             </select>
           </Field>
         </div>
@@ -1027,6 +1030,7 @@ function MaintenanceView({ vehicles }) {
 function RepairsLogView({ vehicles, repairs }) {
   const [plateFilter, setPlateFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("date_desc");
 
@@ -1042,6 +1046,7 @@ function RepairsLogView({ vehicles, repairs }) {
   const filtered = useMemo(() => {
     let list = [...repairs];
     if (plateFilter !== "all") list = list.filter((r) => r.plate === plateFilter);
+    if (statusFilter !== "all") list = list.filter((r) => r.status === statusFilter);
     if (monthFilter !== "all") {
       list = list.filter((r) => {
         const d = new Date(r.date);
@@ -1058,7 +1063,7 @@ function RepairsLogView({ vehicles, repairs }) {
     else if (sortBy === "cost_desc") list.sort((a, b) => b.cost - a.cost);
     else if (sortBy === "cost_asc") list.sort((a, b) => a.cost - b.cost);
     return list;
-  }, [repairs, plateFilter, monthFilter, query, sortBy]);
+  }, [repairs, plateFilter, monthFilter, statusFilter, query, sortBy]);
 
   const totalFiltered = sumCost(filtered);
 
@@ -1082,6 +1087,11 @@ function RepairsLogView({ vehicles, repairs }) {
           <option value="all">ทุกเดือน</option>
           {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 150 }}>
+          <option value="all">ทุกสถานะ</option>
+          <option value="เสร็จสิ้น">เสร็จสิ้นแล้ว</option>
+          <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+        </select>
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 160 }}>
           <option value="date_desc">วันที่ล่าสุดก่อน</option>
           <option value="date_asc">วันที่เก่าสุดก่อน</option>
@@ -1095,7 +1105,10 @@ function RepairsLogView({ vehicles, repairs }) {
       </div>
 
       <div className="flex items-center justify-between mb-3 rounded-lg px-4 py-2.5" style={{ background: "rgba(14,143,160,0.08)", border: "1px solid #0E8FA045" }}>
-        <span style={{ fontSize: 13, color: "var(--text)" }}>พบ {filtered.length} รายการ</span>
+        <span style={{ fontSize: 13, color: "var(--text)" }}>
+          พบ {filtered.length} รายการ
+          <span style={{ color: "var(--text-muted)" }}> · เสร็จสิ้น {filtered.filter((r) => r.status === "เสร็จสิ้น").length} · กำลังดำเนินการ {filtered.filter((r) => r.status === "กำลังดำเนินการ").length}</span>
+        </span>
         <span style={{ fontSize: 13, color: "var(--accent-frost)", fontWeight: 700 }}>รวม {fmtMoney(totalFiltered)} บาท</span>
       </div>
 
@@ -1131,6 +1144,321 @@ function RepairsLogView({ vehicles, repairs }) {
           </table>
         </div>
       </Card>
+    </div>
+  );
+}
+
+
+/* ---------------------------------------------------------------
+   FUEL FORM (add + edit)
+---------------------------------------------------------------- */
+
+function FuelFormModal({ initial, vehicles, onClose, onSave }) {
+  const isEdit = !!initial;
+  const [form, setForm] = useState(() => initial ? {
+    ...initial,
+    liters: String(initial.liters ?? ""),
+    price_per_liter: String(initial.price_per_liter ?? ""),
+    odometer: initial.odometer === null || initial.odometer === undefined ? "" : String(initial.odometer),
+    station: initial.station || "",
+    driver: initial.driver || "",
+    note: initial.note || "",
+  } : {
+    plate: vehicles[0]?.id || "", date: todayISO(), liters: "", price_per_liter: "",
+    odometer: "", station: "", driver: "", note: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+
+  const litersNum = Number(form.liters) || 0;
+  const priceNum = Number(form.price_per_liter) || 0;
+  const totalCost = Math.round(litersNum * priceNum * 100) / 100;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.plate) return setError("กรุณาเลือกทะเบียนรถ");
+    if (!form.date) return setError("กรุณาเลือกวันที่เติม");
+    if (litersNum <= 0) return setError("กรุณากรอกจำนวนลิตรให้ถูกต้อง");
+    if (priceNum <= 0) return setError("กรุณากรอกราคาต่อลิตรให้ถูกต้อง");
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        id: isEdit ? initial.id : undefined,
+        plate: form.plate, date: form.date,
+        liters: litersNum, price_per_liter: priceNum, total_cost: totalCost,
+        odometer: form.odometer === "" ? null : Number(form.odometer),
+        station: form.station.trim(), driver: form.driver.trim(), note: form.note.trim(),
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalShell title={isEdit ? "แก้ไขรายการเติมน้ำมัน" : "บันทึกการเติมน้ำมัน"} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="ทะเบียนรถ *">
+            <select style={inputStyle} value={form.plate} onChange={(e) => update("plate", e.target.value)}>
+              {vehicles.map((v) => <option key={v.id} value={v.id}>{v.id} · {v.brand} {v.model}</option>)}
+            </select>
+          </Field>
+          <Field label="วันที่เติม *"><input style={inputStyle} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="จำนวนลิตร *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 120.50" value={form.liters} onChange={(e) => update("liters", e.target.value)} /></Field>
+          <Field label="ราคาต่อลิตร (บาท) *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 31.94" value={form.price_per_liter} onChange={(e) => update("price_per_liter", e.target.value)} /></Field>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg px-4 py-3" style={{ background: "rgba(14,143,160,0.08)", border: "1px solid #0E8FA055" }}>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>ยอดเงินรวม (คำนวณอัตโนมัติ)</span>
+          <span style={{ fontSize: 17, fontWeight: 700, color: "var(--accent-frost)" }}>{fmtMoney(totalCost)} บาท</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="เลขไมล์ขณะเติม (ถ้ามี)"><input style={inputStyle} type="number" placeholder="เช่น 182450" value={form.odometer} onChange={(e) => update("odometer", e.target.value)} /></Field>
+          <Field label="ปั๊ม / สถานที่เติม"><input style={inputStyle} placeholder="เช่น ปตท. สาขาลาดกระบัง" value={form.station} onChange={(e) => update("station", e.target.value)} /></Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="คนขับที่เติม"><input style={inputStyle} placeholder="ชื่อ-นามสกุล" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
+          <Field label="หมายเหตุ"><input style={inputStyle} placeholder="ถ้ามี" value={form.note} onChange={(e) => update("note", e.target.value)} /></Field>
+        </div>
+
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------------------------------------
+   FUEL VIEW (บันทึก + สรุปการเติมน้ำมัน)
+---------------------------------------------------------------- */
+
+// คืนค่าวันจันทร์ของสัปดาห์นั้น (ใช้จัดกลุ่มรายสัปดาห์)
+function startOfWeek(dateStr) {
+  const d = new Date(dateStr);
+  const day = (d.getDay() + 6) % 7; // จันทร์ = 0
+  d.setDate(d.getDate() - day);
+  return d.toISOString().slice(0, 10);
+}
+
+function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete }) {
+  const [plateFilter, setPlateFilter] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("all");
+  const [groupBy, setGroupBy] = useState("month"); // day | week | month | plate
+  const [formState, setFormState] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const monthOptions = useMemo(() => {
+    const set = new Set();
+    fuelLogs.forEach((f) => {
+      const d = new Date(f.date);
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    });
+    return Array.from(set).sort().reverse();
+  }, [fuelLogs]);
+
+  const monthLabel = (key) => {
+    const [y, m] = key.split("-");
+    return `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
+  };
+
+  const filtered = useMemo(() => {
+    let list = [...fuelLogs];
+    if (plateFilter !== "all") list = list.filter((f) => f.plate === plateFilter);
+    if (monthFilter !== "all") {
+      list = list.filter((f) => {
+        const d = new Date(f.date);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` === monthFilter;
+      });
+    }
+    return list.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [fuelLogs, plateFilter, monthFilter]);
+
+  const totalLiters = filtered.reduce((s, f) => s + Number(f.liters || 0), 0);
+  const totalCost = filtered.reduce((s, f) => s + Number(f.total_cost || 0), 0);
+  const avgPrice = totalLiters > 0 ? totalCost / totalLiters : 0;
+
+  // จัดกลุ่มตามที่เลือก
+  const grouped = useMemo(() => {
+    const map = {};
+    filtered.forEach((f) => {
+      let key, label;
+      const d = new Date(f.date);
+      if (groupBy === "day") { key = f.date; label = fmtDate(f.date); }
+      else if (groupBy === "week") { key = startOfWeek(f.date); label = `สัปดาห์ของ ${fmtDate(key)}`; }
+      else if (groupBy === "month") { key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; label = monthLabel(key); }
+      else { key = f.plate; label = f.plate; }
+      if (!map[key]) map[key] = { key, label, liters: 0, cost: 0, count: 0 };
+      map[key].liters += Number(f.liters || 0);
+      map[key].cost += Number(f.total_cost || 0);
+      map[key].count += 1;
+    });
+    const arr = Object.values(map);
+    if (groupBy === "plate") arr.sort((a, b) => b.cost - a.cost);
+    else arr.sort((a, b) => (a.key < b.key ? 1 : -1));
+    return arr;
+  }, [filtered, groupBy]);
+
+  const chartData = useMemo(() => [...grouped].reverse().slice(-12).map((g) => ({ name: g.label.replace("สัปดาห์ของ ", ""), ลิตร: Math.round(g.liters), บาท: Math.round(g.cost) })), [grouped]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <SectionTitle icon={Fuel} sub="บันทึกการเติมน้ำมันและดูสรุปยอดรายวัน / รายสัปดาห์ / รายเดือน / รายคัน">
+          การเติมน้ำมัน
+        </SectionTitle>
+        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38 }}>
+          <Plus size={16} />บันทึกการเติมน้ำมัน
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <select value={plateFilter} onChange={(e) => setPlateFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 150 }}>
+          <option value="all">ทุกคัน</option>
+          {vehicles.map((v) => <option key={v.id} value={v.id}>{v.id} · {v.brand} {v.model}</option>)}
+        </select>
+        <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 150 }}>
+          <option value="all">ทุกเดือน</option>
+          {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+        <div className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+          {[["day", "รายวัน"], ["week", "รายสัปดาห์"], ["month", "รายเดือน"], ["plate", "รายคัน"]].map(([k, label]) => (
+            <button key={k} onClick={() => setGroupBy(k)} className="rounded-md px-3 py-1.5" style={{ fontSize: 12, fontWeight: 600, background: groupBy === k ? "var(--accent-frost)" : "transparent", color: groupBy === k ? "#FFFFFF" : "var(--text-muted)" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+        <Card style={{ padding: 18 }}>
+          <div className="flex items-center gap-2 mb-2"><Fuel size={17} style={{ color: "var(--accent-frost)" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>ปริมาณน้ำมันรวม</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "var(--text)" }}>{totalLiters.toLocaleString("th-TH", { maximumFractionDigits: 2 })} <span style={{ fontSize: 14, color: "var(--text-muted)" }}>ลิตร</span></div>
+        </Card>
+        <Card style={{ padding: 18 }}>
+          <div className="flex items-center gap-2 mb-2"><ClipboardList size={17} style={{ color: "#16A34A" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>ยอดเงินรวม</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#16A34A" }}>{fmtMoney(Math.round(totalCost))} <span style={{ fontSize: 14, color: "var(--text-muted)" }}>บาท</span></div>
+        </Card>
+        <Card style={{ padding: 18 }}>
+          <div className="flex items-center gap-2 mb-2"><Gauge size={17} style={{ color: "#D97706" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>ราคาเฉลี่ยต่อลิตร</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#D97706" }}>{avgPrice.toFixed(2)} <span style={{ fontSize: 14, color: "var(--text-muted)" }}>บาท/ลิตร</span></div>
+        </Card>
+      </div>
+
+      {chartData.length > 0 && (
+        <Card style={{ padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>กราฟสรุปการเติมน้ำมัน</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} cursor={{ fill: "rgba(15,23,42,0.05)" }} />
+              <Bar dataKey="บาท" radius={[6, 6, 0, 0]} fill="#0E8FA0" barSize={26} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      <Card style={{ overflow: "hidden", marginBottom: 20 }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+          สรุปยอด{{ day: "รายวัน", week: "รายสัปดาห์", month: "รายเดือน", plate: "รายคัน" }[groupBy]}
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+            <thead>
+              <tr style={{ background: "var(--surface-2)" }}>
+                {["ช่วง / ทะเบียน", "จำนวนครั้ง", "ลิตรรวม", "ยอดเงินรวม", "ราคาเฉลี่ย/ลิตร"].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map((g) => (
+                <tr key={g.key} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>
+                    {groupBy === "plate" ? <PlateBadge plate={g.label} /> : g.label}
+                  </td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>{g.count} ครั้ง</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{g.liters.toLocaleString("th-TH", { maximumFractionDigits: 2 })} ลิตร</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--accent-frost)", fontWeight: 700 }}>{fmtMoney(Math.round(g.cost))} บ.</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>{(g.liters > 0 ? g.cost / g.liters : 0).toFixed(2)} บ./ล.</td>
+                </tr>
+              ))}
+              {grouped.length === 0 && <tr><td colSpan={5} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ยังไม่มีข้อมูลการเติมน้ำมัน</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card style={{ overflow: "hidden" }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+          รายการเติมน้ำมันทั้งหมด ({filtered.length})
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+            <thead>
+              <tr style={{ background: "var(--surface-2)" }}>
+                {["ทะเบียน", "วันที่", "ลิตร", "ราคา/ลิตร", "ยอดเงิน", "เลขไมล์", "ปั๊ม", "คนขับ", "จัดการ"].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((f) => (
+                <tr key={f.id} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "10px 14px" }}><PlateBadge plate={f.plate} /></td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(f.date)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{Number(f.liters).toLocaleString("th-TH", { maximumFractionDigits: 2 })}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>{Number(f.price_per_liter).toFixed(2)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{fmtMoney(Math.round(f.total_cost))} บ.</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{f.odometer ? Number(f.odometer).toLocaleString("th-TH") : "-"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{f.station || "-"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{f.driver || "-"}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setFormState(f)} title="แก้ไข" style={iconBtnStyle}><Pencil size={15} /></button>
+                      <button onClick={() => setDeleteTarget(f)} title="ลบ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && <tr><td colSpan={9} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ยังไม่มีรายการเติมน้ำมัน</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {formState && (
+        <FuelFormModal
+          initial={formState === "add" ? null : formState}
+          vehicles={vehicles}
+          onClose={() => setFormState(null)}
+          onSave={async (data) => { if (formState === "add") await onAdd(data); else await onUpdate(data.id, data); }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDelete
+          label={`ต้องการลบรายการเติมน้ำมันของ ${deleteTarget.plate} วันที่ ${fmtDate(deleteTarget.date)} ใช่หรือไม่?`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={async () => { await onDelete(deleteTarget.id); setDeleteTarget(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -1215,6 +1543,7 @@ const TABS = [
   { key: "vehicles", label: "รถทั้งหมด", icon: Truck },
   { key: "maintenance", label: "บำรุงรักษา", icon: Settings2 },
   { key: "repairlog", label: "ประวัติการซ่อม", icon: ClipboardList },
+  { key: "fuel", label: "เติมน้ำมัน", icon: Fuel },
   { key: "drivers", label: "พนักงานขับรถ", icon: User },
 ];
 
@@ -1223,6 +1552,7 @@ export default function FleetApp({ user }) {
   const [vehicles, setVehicles] = useState([]);
   const [repairs, setRepairs] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [fuelLogs, setFuelLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -1231,10 +1561,11 @@ export default function FleetApp({ user }) {
   async function loadAll() {
     setLoading(true);
     try {
-      const [v, r, d] = await Promise.all([fetchVehicles(), fetchRepairs(), fetchDrivers()]);
+      const [v, r, d, fl] = await Promise.all([fetchVehicles(), fetchRepairs(), fetchDrivers(), fetchFuelLogs()]);
       setVehicles(v);
       setRepairs(r);
       setDrivers(d);
+      setFuelLogs(fl);
       setErrorMsg("");
     } catch (e) {
       setErrorMsg("โหลดข้อมูลไม่สำเร็จ: " + (e.message || "unknown error"));
@@ -1300,6 +1631,24 @@ export default function FleetApp({ user }) {
     await loadAll();
   }
 
+  async function handleAddFuel(f) {
+    const { id, ...clean } = f;
+    const { error } = await supabase.from("fuel_logs").insert(clean);
+    if (error) throw error;
+    await loadAll();
+  }
+  async function handleUpdateFuel(id, updates) {
+    const { id: _drop, ...clean } = updates;
+    const { error } = await supabase.from("fuel_logs").update(clean).eq("id", id);
+    if (error) throw error;
+    await loadAll();
+  }
+  async function handleDeleteFuel(id) {
+    const { error } = await supabase.from("fuel_logs").delete().eq("id", id);
+    if (error) throw error;
+    await loadAll();
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -1361,6 +1710,7 @@ export default function FleetApp({ user }) {
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
             {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} />}
+            {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
             )}
