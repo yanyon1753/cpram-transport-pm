@@ -568,7 +568,7 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
    DASHBOARD
 ---------------------------------------------------------------- */
 
-function Dashboard({ vehicles, repairs }) {
+function Dashboard({ vehicles, repairs, onGoToVehicle }) {
   const readyCount = vehicles.filter((v) => v.status === "ready").length;
   const notReadyCount = vehicles.length - readyCount;
 
@@ -677,7 +677,7 @@ function Dashboard({ vehicles, repairs }) {
         <div className="flex flex-col gap-2" style={{ maxHeight: 300, overflowY: "auto" }}>
           {inProgress.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีงานซ่อมที่กำลังดำเนินการอยู่ตอนนี้</p>}
           {inProgress.map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: "var(--surface-2)", borderLeft: `3px solid ${isPendingCost(r.cost) ? "#D97706" : "#0E8FA0"}` }}>
+            <div key={r.id} onClick={() => onGoToVehicle(r.plate)} className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: "var(--surface-2)", borderLeft: `3px solid ${isPendingCost(r.cost) ? "#D97706" : "#0E8FA0"}`, cursor: "pointer", transition: "background .15s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(14,143,160,0.08)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-2)")}>
               <div className="flex items-center gap-3">
                 <PlateBadge plate={r.plate} />
                 <div>
@@ -685,7 +685,7 @@ function Dashboard({ vehicles, repairs }) {
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · เริ่ม {fmtDate(r.date)}</div>
                 </div>
               </div>
-              <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <div className="flex items-center gap-2" style={{ whiteSpace: "nowrap" }}>
                 {isPendingCost(r.cost) ? (
                   <span className="inline-flex items-center gap-1 rounded-full px-2 py-1" style={{ background: "rgba(217,119,6,0.12)", color: "#D97706", border: "1px solid #D9770655", fontSize: 11, fontWeight: 600 }}>
                     <Hourglass size={12} />รอประเมินราคา
@@ -693,6 +693,7 @@ function Dashboard({ vehicles, repairs }) {
                 ) : (
                   <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 700 }}>{fmtMoney(r.cost)} บ.</div>
                 )}
+                <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
               </div>
             </div>
           ))}
@@ -705,7 +706,7 @@ function Dashboard({ vehicles, repairs }) {
           <div className="flex flex-col gap-2" style={{ maxHeight: 320, overflowY: "auto" }}>
             {alerts.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรายการที่ต้องดำเนินการตอนนี้</p>}
             {alerts.map((a, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
+              <div key={i} onClick={() => onGoToVehicle(a.plate)} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", cursor: "pointer", transition: "background .15s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(14,143,160,0.08)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-2)")}>
                 <div className="flex items-center gap-3">
                   <PlateBadge plate={a.plate} />
                   <div>
@@ -713,7 +714,10 @@ function Dashboard({ vehicles, repairs }) {
                     <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{a.brand} {a.model}</div>
                   </div>
                 </div>
-                <DueChip status={a.status} daysLeft={a.daysLeft} />
+                <div className="flex items-center gap-2">
+                  <DueChip status={a.status} daysLeft={a.daysLeft} />
+                  <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
+                </div>
               </div>
             ))}
           </div>
@@ -724,11 +728,14 @@ function Dashboard({ vehicles, repairs }) {
           <div className="flex flex-col gap-2">
             {recentRepairs.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ยังไม่มีประวัติการซ่อม</p>}
             {recentRepairs.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
+              <div key={r.id} onClick={() => onGoToVehicle(r.plate)} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", cursor: "pointer", transition: "background .15s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(14,143,160,0.08)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-2)")}>
                 <div><div style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{r.plate} · {r.type}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{r.description}</div></div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</div>
-                  <div style={{ fontSize: 12, color: isPendingCost(r.cost) ? "#D97706" : "var(--accent-frost)", fontWeight: 600 }}>{fmtCost(r.cost)}</div>
+                <div className="flex items-center gap-2">
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</div>
+                    <div style={{ fontSize: 12, color: isPendingCost(r.cost) ? "#D97706" : "var(--accent-frost)", fontWeight: 600 }}>{fmtCost(r.cost)}</div>
+                  </div>
+                  <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
                 </div>
               </div>
             ))}
@@ -743,9 +750,9 @@ function Dashboard({ vehicles, repairs }) {
    VEHICLES VIEW
 ---------------------------------------------------------------- */
 
-function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepair, onUpdateRepair, onDeleteRepair }) {
+function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepair, onUpdateRepair, onDeleteRepair, initialPlate }) {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(initialPlate || null);
   const [formState, setFormState] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [repairForm, setRepairForm] = useState(null);
@@ -1549,6 +1556,16 @@ const TABS = [
 
 export default function FleetApp({ user }) {
   const [tab, setTab] = useState("dashboard");
+  const [focusPlate, setFocusPlate] = useState(null);
+
+  function handleTabClick(key) {
+    setFocusPlate(null);
+    setTab(key);
+  }
+  function goToVehicle(plate) {
+    setFocusPlate(plate);
+    setTab("vehicles");
+  }
   const [vehicles, setVehicles] = useState([]);
   const [repairs, setRepairs] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -1677,7 +1694,7 @@ export default function FleetApp({ user }) {
             {TABS.map((t) => {
               const active = tab === t.key;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium" style={{ color: active ? "#FFFFFF" : "var(--text-muted)", background: active ? "var(--accent-frost)" : "transparent", transition: "all .15s" }}>
+                <button key={t.key} onClick={() => handleTabClick(t.key)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium" style={{ color: active ? "#FFFFFF" : "var(--text-muted)", background: active ? "var(--accent-frost)" : "transparent", transition: "all .15s" }}>
                   <t.icon size={15} /><span className="hidden sm:inline">{t.label}</span>
                 </button>
               );
@@ -1700,12 +1717,13 @@ export default function FleetApp({ user }) {
           <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "40px 0", textAlign: "center" }}>กำลังโหลดข้อมูล...</div>
         ) : (
           <>
-            {tab === "dashboard" && <Dashboard vehicles={computedVehicles} repairs={repairs} />}
+            {tab === "dashboard" && <Dashboard vehicles={computedVehicles} repairs={repairs} onGoToVehicle={goToVehicle} />}
             {tab === "vehicles" && (
               <VehiclesView
                 vehicles={computedVehicles} repairs={repairs}
                 onAdd={handleAddVehicle} onUpdate={handleUpdateVehicle} onDelete={handleDeleteVehicle}
                 onAddRepair={handleAddRepair} onUpdateRepair={handleUpdateRepair} onDeleteRepair={handleDeleteRepair}
+                initialPlate={focusPlate}
               />
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
