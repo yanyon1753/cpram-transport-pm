@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Sun, Moon,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
