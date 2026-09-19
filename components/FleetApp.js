@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Sun, Moon,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -20,6 +20,19 @@ const TEMP_META = {
   chiller: { label: "แช่เย็น 0-4°C", icon: Droplet, color: "#5B9FE0" },
   ambient: { label: "อุณหภูมิห้อง", icon: Sun, color: "#E0A85B" },
 };
+const THEMES = {
+  light: {
+    bg: "#F4F6F9", surface: "#FFFFFF", surface2: "#F1F4F8", border: "#E2E8F0",
+    text: "#1E293B", textMuted: "#64748B", accent: "#0E8FA0",
+    headerBg: "rgba(255,255,255,0.85)", chartTooltipBg: "#FFFFFF", chartAxis: "#64748B",
+  },
+  dark: {
+    bg: "#0F1620", surface: "#182231", surface2: "#1F2A3B", border: "#2C3B4E",
+    text: "#EAF1F7", textMuted: "#93A4B8", accent: "#3FC3D6",
+    headerBg: "rgba(15,22,32,0.85)", chartTooltipBg: "#182231", chartAxis: "#93A4B8",
+  },
+};
+
 const REPAIR_TYPES = ["เครื่องยนต์", "ระบบทำความเย็น", "ระบบไฟฟ้า", "เบรก", "ยาง", "แบตเตอรี่", "ตัวถัง", "อื่นๆ"];
 const DRIVER_LICENSE_TYPES = ["ท.2", "ท.3", "ท.4"];
 const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
@@ -589,7 +602,13 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
    DASHBOARD
 ---------------------------------------------------------------- */
 
-function Dashboard({ vehicles, repairs, onGoToVehicle }) {
+function Dashboard({ vehicles, repairs, onGoToVehicle, dark }) {
+  const axisColor = dark ? "#93A4B8" : "#64748B";
+  const gridColor = dark ? "#2C3B4E" : "#E2E8F0";
+  const tooltipBg = dark ? "#1F2A3B" : "#FFFFFF";
+  const tooltipBorder = dark ? "#334155" : "#E2E8F0";
+  const labelColor = dark ? "#EAF1F7" : "#1E293B";
+  const cursorFill = dark ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.05)";
   const readyCount = vehicles.filter((v) => v.status === "ready").length;
   const notReadyCount = vehicles.length - readyCount;
 
@@ -661,8 +680,8 @@ function Dashboard({ vehicles, repairs, onGoToVehicle }) {
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={statusData} layout="vertical" margin={{ left: 0, right: 20 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#1E293B" }} cursor={{ fill: "rgba(15,23,42,0.05)" }} />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: labelColor }} cursor={{ fill: cursorFill }} />
               <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>{statusData.map((d, i) => <Cell key={i} fill={d.color} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -673,10 +692,10 @@ function Dashboard({ vehicles, repairs, onGoToVehicle }) {
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>ค่าใช้จ่ายซ่อมบำรุงรายเดือน (บาท)</div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={monthlyCost}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#64748B", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => `${fmtMoney(v)} บาท`} contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#1E293B" }} cursor={{ fill: "rgba(15,23,42,0.05)" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => `${fmtMoney(v)} บาท`} contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: labelColor }} cursor={{ fill: cursorFill }} />
               <Bar dataKey="cost" radius={[6, 6, 0, 0]} fill="#0E8FA0" barSize={28} />
             </BarChart>
           </ResponsiveContainer>
@@ -1309,7 +1328,7 @@ function startOfWeek(dateStr) {
   return d.toISOString().slice(0, 10);
 }
 
-function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete }) {
+function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete, dark }) {
   const [plateFilter, setPlateFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [groupBy, setGroupBy] = useState("month"); // day | week | month | plate
@@ -1418,10 +1437,10 @@ function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete }) {
           <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, fontWeight: 600 }}>กราฟสรุปการเติมน้ำมัน</div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} cursor={{ fill: "rgba(15,23,42,0.05)" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={dark ? "#2C3B4E" : "#E2E8F0"} vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: dark ? "#93A4B8" : "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: dark ? "#93A4B8" : "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: dark ? "#1F2A3B" : "#FFFFFF", border: `1px solid ${dark ? "#334155" : "#E2E8F0"}`, borderRadius: 8, fontSize: 12 }} cursor={{ fill: dark ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.05)" }} />
               <Bar dataKey="บาท" radius={[6, 6, 0, 0]} fill="#0E8FA0" barSize={26} />
             </BarChart>
           </ResponsiveContainer>
@@ -1685,6 +1704,24 @@ const TABS = [
 
 export default function FleetApp({ user }) {
   const [tab, setTab] = useState("dashboard");
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("cpram_theme");
+      if (saved === "dark") setDark(true);
+    } catch (e) {}
+  }, []);
+
+  function toggleTheme() {
+    setDark((d) => {
+      const next = !d;
+      try { window.localStorage.setItem("cpram_theme", next ? "dark" : "light"); } catch (e) {}
+      return next;
+    });
+  }
+
+  const theme = dark ? THEMES.dark : THEMES.light;
   const [focusPlate, setFocusPlate] = useState(null);
 
   function handleTabClick(key) {
@@ -1802,11 +1839,11 @@ export default function FleetApp({ user }) {
 
   return (
     <div style={{
-      "--bg": "#F4F6F9", "--surface": "#FFFFFF", "--surface-2": "#F1F4F8", "--border": "#E2E8F0",
-      "--text": "#1E293B", "--text-muted": "#64748B", "--accent-frost": "#0E8FA0",
-      background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif",
+      "--bg": theme.bg, "--surface": theme.surface, "--surface-2": theme.surface2, "--border": theme.border,
+      "--text": theme.text, "--text-muted": theme.textMuted, "--accent-frost": theme.accent,
+      background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif", transition: "background .2s ease",
     }}>
-      <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.85)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
+      <header style={{ borderBottom: "1px solid var(--border)", background: theme.headerBg, position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
         <div className="mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3" style={{ maxWidth: 1720 }}>
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center rounded-lg" style={{ width: 42, height: 42, background: "#FFFFFF", boxShadow: "0 2px 8px rgba(15,23,42,0.12)" }}>
@@ -1831,6 +1868,9 @@ export default function FleetApp({ user }) {
           </nav>
           <div className="flex items-center gap-3">
             <span style={{ fontSize: 12, color: "var(--text-muted)" }} className="hidden md:inline">{user?.email}</span>
+            <button onClick={toggleTheme} title={dark ? "สลับเป็นโหมดสว่าง" : "สลับเป็นโหมดมืด"} className="flex items-center justify-center rounded-lg" style={{ width: 36, height: 36, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+              {dark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             <button onClick={handleSignOut} className="flex items-center gap-1 rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)", fontSize: 12 }}>
               <LogOut size={14} />ออกจากระบบ
             </button>
@@ -1846,7 +1886,7 @@ export default function FleetApp({ user }) {
           <div style={{ color: "var(--text-muted)", fontSize: 14, padding: "40px 0", textAlign: "center" }}>กำลังโหลดข้อมูล...</div>
         ) : (
           <>
-            {tab === "dashboard" && <Dashboard vehicles={computedVehicles} repairs={repairs} onGoToVehicle={goToVehicle} />}
+            {tab === "dashboard" && <Dashboard vehicles={computedVehicles} repairs={repairs} onGoToVehicle={goToVehicle} dark={dark} />}
             {tab === "readiness" && <ReadinessView vehicles={computedVehicles} onGoToVehicle={goToVehicle} />}
             {tab === "vehicles" && (
               <VehiclesView
@@ -1858,7 +1898,7 @@ export default function FleetApp({ user }) {
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
             {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} />}
-            {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} />}
+            {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} dark={dark} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
             )}
