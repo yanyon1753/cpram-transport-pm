@@ -409,8 +409,9 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
     cost: initial.cost === null || initial.cost === undefined ? "" : String(initial.cost),
     pendingEstimate: initial.cost === null || initial.cost === undefined,
     pr_number: initial.pr_number || "",
+    po_number: initial.po_number || "",
   } : {
-    date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น", pendingEstimate: false, pr_number: "",
+    date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น", pendingEstimate: false, pr_number: "", po_number: "",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -429,6 +430,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
         cost: form.pendingEstimate ? null : (Number(form.cost) || 0),
         garage: form.garage.trim() || "-", status: form.status,
         pr_number: form.pr_number.trim(),
+        po_number: form.po_number.trim(),
       });
       onClose();
     } catch (err) {
@@ -478,6 +480,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
           <Field label="อู่ / ศูนย์บริการ (ทำที่ไหน)"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
           <Field label="เลขที่ PR (ถ้ามี)"><input style={inputStyle} placeholder="เช่น PR-2569-00123" value={form.pr_number} onChange={(e) => update("pr_number", e.target.value)} /></Field>
         </div>
+        <Field label="เลขที่ PO (ถ้ามี)"><input style={inputStyle} placeholder="เช่น PO-2569-00456" value={form.po_number} onChange={(e) => update("po_number", e.target.value)} /></Field>
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
@@ -782,10 +785,10 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
 
       <Card style={{ overflow: "hidden", marginBottom: selVehicle ? 20 : 0 }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1080 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "สถานะรถ", "PM เครื่องยนต์", "คนขับ", "จัดการ", ""].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "สถานะรถ", "PM เครื่องยนต์", "ภาษี/พ.ร.บ.", "คนขับ", "จัดการ", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -800,6 +803,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.length_m ? `${v.length_m} ม.` : "-"}</td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><StatusChip status={v.status} reason={v.reason} /></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
+                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.driver}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <div className="flex items-center gap-1">
@@ -813,7 +817,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
+                <tr><td colSpan={11} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
               )}
             </tbody>
           </table>
@@ -896,7 +900,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                     <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
                       <div className="flex items-center gap-3">
                         <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
-                        <div><div style={{ fontSize: 13, color: "var(--text)" }}>{r.description}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · {r.status}{r.pr_number ? ` · PR ${r.pr_number}` : ""}</div></div>
+                        <div><div style={{ fontSize: 13, color: "var(--text)" }}>{r.description}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · {r.status}{r.pr_number ? ` · PR ${r.pr_number}` : ""}{r.po_number ? ` · PO ${r.po_number}` : ""}</div></div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div style={{ textAlign: "right" }}>
@@ -965,8 +969,7 @@ function MaintenanceView({ vehicles }) {
       const worst = Math.min(
         v.pm.daysLeft ?? Infinity,
         v.coolingPm.daysLeft ?? Infinity,
-        v.calibration.daysLeft ?? Infinity,
-        v.tax.daysLeft ?? Infinity
+        v.calibration.daysLeft ?? Infinity
       );
       return { ...v, worst };
     }).sort((a, b) => a.worst - b.worst);
@@ -987,7 +990,7 @@ function MaintenanceView({ vehicles }) {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น", "ภาษี/พ.ร.บ."].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น"].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -1008,10 +1011,6 @@ function MaintenanceView({ vehicles }) {
                   <td style={{ padding: "10px 14px" }}>
                     <DueChip status={v.calibration.status} daysLeft={v.calibration.daysLeft} />
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.calibration.next)}</div>
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} />
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.tax_expiry)}</div>
                   </td>
                 </tr>
               ))}
@@ -1056,7 +1055,7 @@ function RepairsLogView({ vehicles, repairs }) {
     }
     if (query.trim()) {
       const q = query.trim().toLowerCase();
-      list = list.filter((r) => r.description.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.plate.toLowerCase().includes(q) || (r.garage || "").toLowerCase().includes(q) || (r.pr_number || "").toLowerCase().includes(q));
+      list = list.filter((r) => r.description.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.plate.toLowerCase().includes(q) || (r.garage || "").toLowerCase().includes(q) || (r.pr_number || "").toLowerCase().includes(q) || (r.po_number || "").toLowerCase().includes(q));
     }
     if (sortBy === "date_desc") list.sort((a, b) => new Date(b.date) - new Date(a.date));
     else if (sortBy === "date_asc") list.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1117,7 +1116,7 @@ function RepairsLogView({ vehicles, repairs }) {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "วันที่", "ประเภท", "รายละเอียด", "เลขที่ PR", "อู่/ศูนย์บริการ", "สถานะ", "ค่าใช้จ่าย"].map((h) => (
+                {["ทะเบียน", "วันที่", "ประเภท", "รายละเอียด", "เลขที่ PR", "เลขที่ PO", "อู่/ศูนย์บริการ", "สถานะ", "ค่าใช้จ่าย"].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -1132,13 +1131,14 @@ function RepairsLogView({ vehicles, repairs }) {
                   </td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{r.description}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{r.pr_number || "-"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{r.po_number || "-"}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#16A34A" : "#D97706" }}>{r.status}</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: isPendingCost(r.cost) ? "#D97706" : "var(--text)", fontWeight: 600 }}>{fmtCost(r.cost)}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรายการซ่อมที่ตรงกับตัวกรอง</td></tr>
+                <tr><td colSpan={9} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรายการซ่อมที่ตรงกับตัวกรอง</td></tr>
               )}
             </tbody>
           </table>
