@@ -275,6 +275,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     battery_changed: initial.battery_changed || todayISO(),
     has_cargo: !!initial.has_cargo,
     cargo_note: initial.cargo_note || "",
+    has_tail_lift: !!initial.has_tail_lift,
     tax_expiry: initial.tax_expiry || todayISO(),
     cooling_brand: initial.cooling_brand || "",
   } : {
@@ -283,6 +284,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     cooling_brand: "", wheels: "6", length_m: "6", fuel_tank_liters: "150",
     tax_expiry: todayISO(), tire_changed: todayISO(), battery_changed: todayISO(),
     has_cargo: false, cargo_note: "",
+    has_tail_lift: false,
     cooling_pm_last: todayISO(), cooling_pm_interval: "90",
     calibration_last: todayISO(), calibration_interval: "180",
   });
@@ -317,6 +319,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
         battery_changed: form.battery_changed || null,
         has_cargo: !!form.has_cargo,
         cargo_note: form.has_cargo ? form.cargo_note.trim() : "",
+        has_tail_lift: !!form.has_tail_lift,
         cooling_pm_last: form.cooling_pm_last || null,
         cooling_pm_interval: Number(form.cooling_pm_interval) || 90,
         calibration_last: form.calibration_last || null,
@@ -380,6 +383,10 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
           <Field label="ความยาว (เมตร)"><input style={inputStyle} type="number" step="0.1" value={form.length_m} onChange={(e) => update("length_m", e.target.value)} /></Field>
           <Field label="ถังน้ำมัน (ลิตร)"><input style={inputStyle} type="number" value={form.fuel_tank_liters} onChange={(e) => update("fuel_tank_liters", e.target.value)} /></Field>
         </div>
+        <label className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: form.has_tail_lift ? "rgba(14,143,160,0.1)" : "var(--surface-2)", border: `1px solid ${form.has_tail_lift ? "#0E8FA055" : "var(--border)"}`, cursor: "pointer" }}>
+          <input type="checkbox" checked={form.has_tail_lift} onChange={(e) => update("has_tail_lift", e.target.checked)} style={{ width: 15, height: 15, accentColor: "#0E8FA0", cursor: "pointer" }} />
+          <span style={{ fontSize: 13, color: form.has_tail_lift ? "var(--accent-frost)" : "var(--text-muted)", fontWeight: 600 }}>มีลิฟท์ท้าย (Tail Lift)</span>
+        </label>
 
         <SubHeading>กำหนดการบำรุงรักษา</SubHeading>
         <div className="grid grid-cols-2 gap-3">
@@ -806,10 +813,10 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
 
       <Card style={{ overflow: "hidden", marginBottom: selVehicle ? 20 : 0 }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1080 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1160 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "สถานะรถ", "PM เครื่องยนต์", "ภาษี/พ.ร.บ.", "คนขับ", "จัดการ", ""].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "ลิฟท์ท้าย", "สถานะรถ", "PM เครื่องยนต์", "ภาษี/พ.ร.บ.", "คนขับ", "จัดการ", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -822,6 +829,13 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><TempChip temp={v.temp} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.wheels || "-"} ล้อ</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.length_m ? `${v.length_m} ม.` : "-"}</td>
+                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>
+                    {v.has_tail_lift ? (
+                      <span className="chip" style={{ background: "rgba(14,143,160,0.14)", color: "var(--accent-frost)", display: "inline-flex", alignItems: "center", gap: 4, borderRadius: 999, padding: "4px 9px", fontSize: 11, fontWeight: 600 }}>มี</span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>ไม่มี</span>
+                    )}
+                  </td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><StatusChip status={v.status} reason={v.reason} /></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} /></td>
@@ -838,7 +852,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={11} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
+                <tr><td colSpan={12} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
               )}
             </tbody>
           </table>
@@ -880,6 +894,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>จำนวนล้อ</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.wheels || "-"} ล้อ</div></div>
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ความยาว</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.length_m || "-"} ม.</div></div>
             <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ถังน้ำมัน</div><div style={{ fontSize: 13, color: "var(--text)", marginTop: 2 }}>{selVehicle.fuel_tank_liters || "-"} ลิตร</div></div>
+            <div className="rounded-lg px-3 py-3" style={{ background: "var(--surface-2)" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>ลิฟท์ท้าย</div><div style={{ fontSize: 13, color: selVehicle.has_tail_lift ? "var(--accent-frost)" : "var(--text-muted)", marginTop: 2, fontWeight: selVehicle.has_tail_lift ? 700 : 400 }}>{selVehicle.has_tail_lift ? "มี" : "ไม่มี"}</div></div>
           </div>
 
           <SubHeading>กำหนดการบำรุงรักษา</SubHeading>
@@ -1000,7 +1015,8 @@ function MaintenanceView({ vehicles }) {
       const worst = Math.min(
         v.pm.daysLeft ?? Infinity,
         v.coolingPm.daysLeft ?? Infinity,
-        v.calibration.daysLeft ?? Infinity
+        v.calibration.daysLeft ?? Infinity,
+        v.tax.daysLeft ?? Infinity
       );
       return { ...v, worst };
     }).sort((a, b) => a.worst - b.worst);
@@ -1008,7 +1024,7 @@ function MaintenanceView({ vehicles }) {
 
   return (
     <div>
-      <SectionTitle icon={Calendar} sub="รวม PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรทตู้เย็น ของรถทุกคันไว้ที่เดียว เรียงตามรายการที่ใกล้ครบกำหนดที่สุด">
+      <SectionTitle icon={Calendar} sub="รวม PM เครื่องยนต์ / PM ตู้เย็น / คาลิเบรทตู้เย็น / ภาษี-พ.ร.บ. ของรถทุกคันไว้ที่เดียว เรียงตามรายการที่ใกล้ครบกำหนดที่สุด">
         กำหนดการบำรุงรักษา
       </SectionTitle>
       <div className="flex items-center gap-4 mb-4 flex-wrap" style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -1018,10 +1034,10 @@ function MaintenanceView({ vehicles }) {
       </div>
       <Card style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1080 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น"].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ยี่ห้อเครื่องเย็น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น", "ภาษี/พ.ร.บ."].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -1031,6 +1047,7 @@ function MaintenanceView({ vehicles }) {
                 <tr key={v.id} style={{ borderTop: "1px solid var(--border)" }}>
                   <td style={{ padding: "10px 14px" }}><PlateBadge plate={v.id} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{v.brand} {v.model}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>{v.cooling_brand || "-"}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} />
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.pm.next)}</div>
@@ -1042,6 +1059,10 @@ function MaintenanceView({ vehicles }) {
                   <td style={{ padding: "10px 14px" }}>
                     <DueChip status={v.calibration.status} daysLeft={v.calibration.daysLeft} />
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.calibration.next)}</div>
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.tax_expiry)}</div>
                   </td>
                 </tr>
               ))}
