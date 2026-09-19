@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -273,6 +273,8 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     calibration_last: initial.calibration_last || todayISO(),
     tire_changed: initial.tire_changed || todayISO(),
     battery_changed: initial.battery_changed || todayISO(),
+    has_cargo: !!initial.has_cargo,
+    cargo_note: initial.cargo_note || "",
     tax_expiry: initial.tax_expiry || todayISO(),
     cooling_brand: initial.cooling_brand || "",
   } : {
@@ -280,6 +282,7 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
     status: "ready", reason: "", last_pm: todayISO(), pm_interval: "90", driver: "",
     cooling_brand: "", wheels: "6", length_m: "6", fuel_tank_liters: "150",
     tax_expiry: todayISO(), tire_changed: todayISO(), battery_changed: todayISO(),
+    has_cargo: false, cargo_note: "",
     cooling_pm_last: todayISO(), cooling_pm_interval: "90",
     calibration_last: todayISO(), calibration_interval: "180",
   });
@@ -312,6 +315,8 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
         tax_expiry: form.tax_expiry || null,
         tire_changed: form.tire_changed || null,
         battery_changed: form.battery_changed || null,
+        has_cargo: !!form.has_cargo,
+        cargo_note: form.has_cargo ? form.cargo_note.trim() : "",
         cooling_pm_last: form.cooling_pm_last || null,
         cooling_pm_interval: Number(form.cooling_pm_interval) || 90,
         calibration_last: form.calibration_last || null,
@@ -348,6 +353,15 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
         </div>
         {form.status === "not_ready" && (
           <Field label="เหตุผลที่ไม่พร้อมใช้งาน"><input style={inputStyle} placeholder="เช่น รอซ่อมเครื่องยนต์" value={form.reason} onChange={(e) => update("reason", e.target.value)} /></Field>
+        )}
+
+        <label className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: form.has_cargo ? "rgba(217,119,6,0.1)" : "var(--surface-2)", border: `1px solid ${form.has_cargo ? "#D9770655" : "var(--border)"}`, cursor: "pointer" }}>
+          <input type="checkbox" checked={form.has_cargo} onChange={(e) => update("has_cargo", e.target.checked)} style={{ width: 15, height: 15, accentColor: "#D97706", cursor: "pointer" }} />
+          <Package size={14} style={{ color: form.has_cargo ? "#D97706" : "var(--text-muted)" }} />
+          <span style={{ fontSize: 13, color: form.has_cargo ? "#D97706" : "var(--text-muted)", fontWeight: 600 }}>มีสินค้า/ตะกร้าค้างอยู่ในตู้</span>
+        </label>
+        {form.has_cargo && (
+          <Field label="รายละเอียดสินค้า/ตะกร้าที่ค้างอยู่"><input style={inputStyle} placeholder="เช่น ตะกร้าเปล่า 20 ใบ, สินค้าเบเกอรี่รอส่ง" value={form.cargo_note} onChange={(e) => update("cargo_note", e.target.value)} /></Field>
         )}
 
         <SubHeading>สเปครถ / ระบบทำความเย็น</SubHeading>
@@ -845,8 +859,18 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
           </div>
 
           {selVehicle.status === "not_ready" && selVehicle.reason && (
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-5" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655" }}>
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-3" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655" }}>
               <AlertTriangle size={14} style={{ color: "#DC2626" }} /><span style={{ fontSize: 13, color: "#DC2626" }}>{selVehicle.reason}</span>
+            </div>
+          )}
+
+          {selVehicle.has_cargo ? (
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-5" style={{ background: "rgba(217,119,6,0.1)", border: "1px solid #D9770655" }}>
+              <Package size={14} style={{ color: "#D97706" }} /><span style={{ fontSize: 13, color: "#D97706" }}>มีสินค้า/ตะกร้าค้างอยู่ในตู้: {selVehicle.cargo_note || "ไม่ได้ระบุรายละเอียด"}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-5" style={{ background: "var(--surface-2)" }}>
+              <Box size={14} style={{ color: "var(--text-muted)" }} /><span style={{ fontSize: 13, color: "var(--text-muted)" }}>ตู้ว่าง ไม่มีสินค้าค้าง</span>
             </div>
           )}
 
@@ -1470,6 +1494,87 @@ function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete }) {
   );
 }
 
+
+/* ---------------------------------------------------------------
+   READINESS VIEW (รถพร้อมใช้งาน / ไม่พร้อมใช้งาน + สินค้าค้างในตู้)
+---------------------------------------------------------------- */
+
+function ReadinessView({ vehicles, onGoToVehicle }) {
+  const ready = vehicles.filter((v) => v.status === "ready");
+  const notReady = vehicles.filter((v) => v.status === "not_ready");
+  const withCargo = vehicles.filter((v) => v.has_cargo);
+
+  return (
+    <div>
+      <SectionTitle icon={Box} sub="ดูภาพรวมว่ารถคันไหนพร้อมใช้งาน คันไหนติดปัญหาอะไร และคันไหนยังมีสินค้า/ตะกร้าค้างอยู่ในตู้">
+        ความพร้อมใช้งานของรถ
+      </SectionTitle>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card style={{ padding: 18 }}>
+          <div className="flex items-center gap-2 mb-1"><CheckCircle2 size={17} style={{ color: "#16A34A" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>พร้อมใช้งาน</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#16A34A" }}>{ready.length} <span style={{ fontSize: 14, color: "var(--text-muted)" }}>คัน</span></div>
+        </Card>
+        <Card style={{ padding: 18 }}>
+          <div className="flex items-center gap-2 mb-1"><AlertTriangle size={17} style={{ color: "#DC2626" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>ไม่พร้อมใช้งาน</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#DC2626" }}>{notReady.length} <span style={{ fontSize: 14, color: "var(--text-muted)" }}>คัน</span></div>
+        </Card>
+        <Card style={{ padding: 18 }}>
+          <div className="flex items-center gap-2 mb-1"><Package size={17} style={{ color: "#D97706" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>มีสินค้า/ตะกร้าค้างในตู้</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#D97706" }}>{withCargo.length} <span style={{ fontSize: 14, color: "var(--text-muted)" }}>คัน</span></div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card style={{ padding: 20 }}>
+          <div className="flex items-center gap-2 mb-4"><CheckCircle2 size={16} style={{ color: "#16A34A" }} /><span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>รถที่พร้อมใช้งาน ({ready.length})</span></div>
+          <div className="flex flex-wrap gap-2">
+            {ready.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรถที่พร้อมใช้งานตอนนี้</p>}
+            {ready.map((v) => (
+              <div key={v.id} onClick={() => onGoToVehicle(v.id)} className="flex items-center gap-2 rounded-lg px-2 py-2" style={{ background: "var(--surface-2)", cursor: "pointer", border: "1px solid var(--border)" }}>
+                <PlateBadge plate={v.id} />
+                {v.has_cargo && (
+                  <span title={v.cargo_note} className="inline-flex items-center gap-1 rounded-full px-2 py-1" style={{ background: "rgba(217,119,6,0.12)", color: "#D97706", fontSize: 10, fontWeight: 600 }}>
+                    <Package size={11} />มีของค้าง
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card style={{ padding: 20 }}>
+          <div className="flex items-center gap-2 mb-4"><AlertTriangle size={16} style={{ color: "#DC2626" }} /><span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>รถที่ไม่พร้อมใช้งาน ({notReady.length})</span></div>
+          <div className="flex flex-col gap-2">
+            {notReady.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรถที่ติดปัญหาตอนนี้</p>}
+            {notReady.map((v) => (
+              <div key={v.id} onClick={() => onGoToVehicle(v.id)} className="rounded-lg px-3 py-2.5" style={{ background: "var(--surface-2)", cursor: "pointer", borderLeft: "3px solid #DC2626" }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <PlateBadge plate={v.id} />
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{v.brand} {v.model}</span>
+                  </div>
+                  <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
+                </div>
+                <div style={{ fontSize: 12, color: "#DC2626", marginTop: 6 }}>ปัญหา: {v.reason || "ไม่ได้ระบุ"}</div>
+                {v.has_cargo ? (
+                  <div className="flex items-center gap-1 mt-1" style={{ fontSize: 12, color: "#D97706" }}>
+                    <Package size={12} />มีสินค้า/ตะกร้าค้างในตู้: {v.cargo_note || "ไม่ได้ระบุรายละเอียด"}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 mt-1" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    <Box size={12} />ตู้ว่าง ไม่มีสินค้าค้าง
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------
    DRIVERS VIEW
 ---------------------------------------------------------------- */
@@ -1547,6 +1652,7 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
 
 const TABS = [
   { key: "dashboard", label: "แดชบอร์ด", icon: Gauge },
+  { key: "readiness", label: "ความพร้อมใช้งาน", icon: Box },
   { key: "vehicles", label: "รถทั้งหมด", icon: Truck },
   { key: "maintenance", label: "บำรุงรักษา", icon: Settings2 },
   { key: "repairlog", label: "ประวัติการซ่อม", icon: ClipboardList },
@@ -1718,6 +1824,7 @@ export default function FleetApp({ user }) {
         ) : (
           <>
             {tab === "dashboard" && <Dashboard vehicles={computedVehicles} repairs={repairs} onGoToVehicle={goToVehicle} />}
+            {tab === "readiness" && <ReadinessView vehicles={computedVehicles} onGoToVehicle={goToVehicle} />}
             {tab === "vehicles" && (
               <VehiclesView
                 vehicles={computedVehicles} repairs={repairs}
