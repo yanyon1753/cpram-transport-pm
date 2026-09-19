@@ -816,7 +816,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1160 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "ลิฟท์ท้าย", "สถานะรถ", "PM เครื่องยนต์", "ภาษี/พ.ร.บ.", "คนขับ", "จัดการ", ""].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ประเภทตู้", "ล้อ", "ขนาดตู้ (ยาว)", "ถังน้ำมัน", "ลิฟท์ท้าย", "สถานะรถ", "คนขับ", "จัดการ", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -829,6 +829,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><TempChip temp={v.temp} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.wheels || "-"} ล้อ</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.length_m ? `${v.length_m} ม.` : "-"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.fuel_tank_liters ? `${v.fuel_tank_liters} ล.` : "-"}</td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>
                     {v.has_tail_lift ? (
                       <span className="chip" style={{ background: "rgba(14,143,160,0.14)", color: "var(--accent-frost)", display: "inline-flex", alignItems: "center", gap: 4, borderRadius: 999, padding: "4px 9px", fontSize: 11, fontWeight: 600 }}>มี</span>
@@ -837,8 +838,6 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                     )}
                   </td>
                   <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><StatusChip status={v.status} reason={v.reason} /></td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} /></td>
-                  <td style={{ padding: "10px 14px", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}><DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }} onClick={() => setSelected(v.id === selected ? null : v.id)}>{v.driver}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <div className="flex items-center gap-1">
@@ -852,7 +851,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={12} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
+                <tr><td colSpan={11} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรถที่ตรงกับคำค้นหา</td></tr>
               )}
             </tbody>
           </table>
@@ -1034,10 +1033,10 @@ function MaintenanceView({ vehicles }) {
       </div>
       <Card style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1080 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1260 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ยี่ห้อเครื่องเย็น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น", "ภาษี/พ.ร.บ."].map((h) => (
+                {["ทะเบียน", "ยี่ห้อ / รุ่น", "ล้อ", "ยี่ห้อเครื่องเย็น", "PM เครื่องยนต์", "PM ตู้เย็น", "คาลิเบรทตู้เย็น", "ภาษี/พ.ร.บ.", "เปลี่ยนยางล่าสุด", "เปลี่ยนแบตล่าสุด"].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -1047,6 +1046,7 @@ function MaintenanceView({ vehicles }) {
                 <tr key={v.id} style={{ borderTop: "1px solid var(--border)" }}>
                   <td style={{ padding: "10px 14px" }}><PlateBadge plate={v.id} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{v.brand} {v.model}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>{v.wheels || "-"} ล้อ</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>{v.cooling_brand || "-"}</td>
                   <td style={{ padding: "10px 14px" }}>
                     <DueChip status={v.pm.status} daysLeft={v.pm.daysLeft} />
@@ -1064,6 +1064,8 @@ function MaintenanceView({ vehicles }) {
                     <DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} />
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.tax_expiry)}</div>
                   </td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.tire_changed)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(v.battery_changed)}</td>
                 </tr>
               ))}
             </tbody>
