@@ -1807,7 +1807,7 @@ export default function FleetApp({ user }) {
       background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif",
     }}>
       <header style={{ borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.85)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
-        <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3">
+        <div className="mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3" style={{ maxWidth: 1720 }}>
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center rounded-lg" style={{ width: 42, height: 42, background: "#FFFFFF", boxShadow: "0 2px 8px rgba(15,23,42,0.12)" }}>
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 15, fontStyle: "italic", letterSpacing: -0.5 }}>
@@ -1838,7 +1838,7 @@ export default function FleetApp({ user }) {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-5 py-6">
+      <main className="mx-auto px-5 py-6" style={{ maxWidth: 1720 }}>
         {errorMsg && (
           <div style={{ marginBottom: 16, fontSize: 12, color: "#D97706", background: "rgba(217,119,6,0.1)", border: "1px solid #D9770655", borderRadius: 8, padding: "8px 12px" }}>{errorMsg}</div>
         )}
@@ -1866,7 +1866,7 @@ export default function FleetApp({ user }) {
         )}
       </main>
 
-      <footer className="max-w-7xl mx-auto px-5 py-6" style={{ color: "var(--text-muted)", fontSize: 12 }}>
+      <footer className="mx-auto px-5 py-6" style={{ maxWidth: 1720, color: "var(--text-muted)", fontSize: 12 }}>
         ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM Fleet Management
       </footer>
     </div>
