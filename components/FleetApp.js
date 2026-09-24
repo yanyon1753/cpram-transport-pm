@@ -34,6 +34,8 @@ const THEMES = {
 };
 
 const REPAIR_TYPES = ["เครื่องยนต์", "ระบบทำความเย็น", "ระบบไฟฟ้า", "เบรก", "ยาง", "แบตเตอรี่", "ตัวถัง", "อื่นๆ"];
+const GARAGE_OPTIONS = ["ศูนย์บริการ ฮีโน่ทีพี จำกัด", "อู่ช่างอ้วน ตั้งวาล์ว เซอร์วิส จำกัด"];
+const STATION_OPTIONS = ["ปตท. ลาดหลุมแก้ว"];
 const DRIVER_LICENSE_TYPES = ["ท.2", "ท.3", "ท.4"];
 const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
@@ -199,6 +201,34 @@ function Field({ label, children }) {
       <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+// ช่องเลือกจากลิสต์ที่ตั้งไว้ล่วงหน้า พร้อมตัวเลือก "อื่นๆ (ระบุเอง)" เผื่อไม่มีในลิสต์
+function SelectOrOther({ label, options, value, onChange, placeholder }) {
+  const isCustom = value !== "" && !options.includes(value);
+  const [customMode, setCustomMode] = useState(isCustom);
+
+  return (
+    <Field label={label}>
+      <div className="flex flex-col gap-2">
+        <select
+          style={inputStyle}
+          value={customMode ? "__other__" : value}
+          onChange={(e) => {
+            if (e.target.value === "__other__") { setCustomMode(true); onChange(""); }
+            else { setCustomMode(false); onChange(e.target.value); }
+          }}
+        >
+          <option value="">-- เลือก --</option>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          <option value="__other__">อื่นๆ (ระบุเอง)</option>
+        </select>
+        {customMode && (
+          <input style={inputStyle} placeholder={placeholder || "พิมพ์ชื่อเอง"} value={value} onChange={(e) => onChange(e.target.value)} />
+        )}
+      </div>
+    </Field>
   );
 }
 
@@ -520,7 +550,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
           <span style={{ fontSize: 13, color: form.pendingEstimate ? "#D97706" : "var(--text-muted)", fontWeight: 600 }}>ยังไม่ทราบค่าใช้จ่าย (รอประเมินราคา)</span>
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="อู่ / ศูนย์บริการ (ทำที่ไหน)"><input style={inputStyle} placeholder="เช่น อู่กลาง CPRAM" value={form.garage} onChange={(e) => update("garage", e.target.value)} /></Field>
+          <SelectOrOther label="อู่ / ศูนย์บริการ (ทำที่ไหน)" options={GARAGE_OPTIONS} value={form.garage} onChange={(v) => update("garage", v)} placeholder="พิมพ์ชื่ออู่/ศูนย์บริการ" />
           <Field label="เลขที่ PR (ถ้ามี)"><input style={inputStyle} placeholder="เช่น PR-2569-00123" value={form.pr_number} onChange={(e) => update("pr_number", e.target.value)} /></Field>
         </div>
         <Field label="เลขที่ PO (ถ้ามี)"><input style={inputStyle} placeholder="เช่น PO-2569-00456" value={form.po_number} onChange={(e) => update("po_number", e.target.value)} /></Field>
@@ -1283,37 +1313,37 @@ function FuelFormModal({ initial, vehicles, onClose, onSave }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(() => initial ? {
     ...initial,
-    liters: String(initial.liters ?? ""),
+    total_cost: String(initial.total_cost ?? ""),
     price_per_liter: String(initial.price_per_liter ?? ""),
     odometer: initial.odometer === null || initial.odometer === undefined ? "" : String(initial.odometer),
     station: initial.station || "",
     driver: initial.driver || "",
     note: initial.note || "",
   } : {
-    plate: vehicles[0]?.id || "", date: todayISO(), liters: "", price_per_liter: "",
+    plate: vehicles[0]?.id || "", date: todayISO(), total_cost: "", price_per_liter: "",
     odometer: "", station: "", driver: "", note: "",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  const litersNum = Number(form.liters) || 0;
+  const totalCostNum = Number(form.total_cost) || 0;
   const priceNum = Number(form.price_per_liter) || 0;
-  const totalCost = Math.round(litersNum * priceNum * 100) / 100;
+  const litersNum = priceNum > 0 ? Math.round((totalCostNum / priceNum) * 100) / 100 : 0;
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.plate) return setError("กรุณาเลือกทะเบียนรถ");
     if (!form.date) return setError("กรุณาเลือกวันที่เติม");
-    if (litersNum <= 0) return setError("กรุณากรอกจำนวนลิตรให้ถูกต้อง");
-    if (priceNum <= 0) return setError("กรุณากรอกราคาต่อลิตรให้ถูกต้อง");
+    if (totalCostNum <= 0) return setError("กรุณากรอกจำนวนเงินให้ถูกต้อง");
+    if (priceNum <= 0) return setError("กรุณากรอกราคาน้ำมันต่อลิตรให้ถูกต้อง");
     setSaving(true);
     setError("");
     try {
       await onSave({
         id: isEdit ? initial.id : undefined,
         plate: form.plate, date: form.date,
-        liters: litersNum, price_per_liter: priceNum, total_cost: totalCost,
+        liters: litersNum, price_per_liter: priceNum, total_cost: totalCostNum,
         odometer: form.odometer === "" ? null : Number(form.odometer),
         station: form.station.trim(), driver: form.driver.trim(), note: form.note.trim(),
       });
@@ -1338,18 +1368,18 @@ function FuelFormModal({ initial, vehicles, onClose, onSave }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="จำนวนลิตร *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 120.50" value={form.liters} onChange={(e) => update("liters", e.target.value)} /></Field>
-          <Field label="ราคาต่อลิตร (บาท) *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 31.94" value={form.price_per_liter} onChange={(e) => update("price_per_liter", e.target.value)} /></Field>
+          <Field label="จำนวนเงิน (บาท) *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 3000" value={form.total_cost} onChange={(e) => update("total_cost", e.target.value)} /></Field>
+          <Field label="ราคาน้ำมันต่อลิตร (บาท) *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 31.94" value={form.price_per_liter} onChange={(e) => update("price_per_liter", e.target.value)} /></Field>
         </div>
 
         <div className="flex items-center justify-between rounded-lg px-4 py-3" style={{ background: "rgba(14,143,160,0.08)", border: "1px solid #0E8FA055" }}>
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>ยอดเงินรวม (คำนวณอัตโนมัติ)</span>
-          <span style={{ fontSize: 17, fontWeight: 700, color: "var(--accent-frost)" }}>{fmtMoney(totalCost)} บาท</span>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>จำนวนลิตร (คำนวณอัตโนมัติ)</span>
+          <span style={{ fontSize: 17, fontWeight: 700, color: "var(--accent-frost)" }}>{litersNum.toLocaleString("th-TH", { maximumFractionDigits: 2 })} ลิตร</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="เลขไมล์ขณะเติม (ถ้ามี)"><input style={inputStyle} type="number" placeholder="เช่น 182450" value={form.odometer} onChange={(e) => update("odometer", e.target.value)} /></Field>
-          <Field label="ปั๊ม / สถานที่เติม"><input style={inputStyle} placeholder="เช่น ปตท. สาขาลาดกระบัง" value={form.station} onChange={(e) => update("station", e.target.value)} /></Field>
+          <SelectOrOther label="ปั๊ม / สถานที่เติม" options={STATION_OPTIONS} value={form.station} onChange={(v) => update("station", v)} placeholder="พิมพ์ชื่อปั๊ม/สถานที่เติม" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
