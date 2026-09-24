@@ -1965,3 +1965,623 @@ export default function FleetApp({ user }) {
     </div>
   );
 }
+          <div className="grid grid-cols-2 gap-3">
+          <Field label="วันหมดอายุใบขับขี่ *"><input style={inputStyle} type="date" value={form.expiry} onChange={(e) => update("expiry", e.target.value)} /></Field>
+          <Field label="เบอร์โทรศัพท์"><input style={inputStyle} placeholder="081-XXX-XXXX" value={form.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="รถประจำตำแหน่ง">
+            <select style={inputStyle} value={form.vehicle} onChange={(e) => update("vehicle", e.target.value)}>
+              <option value="สำรอง">รถสำรอง / ไม่ระบุ</option>
+              {vehiclePlates.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
+          <Field label="อายุงาน (ปี)"><input style={inputStyle} type="number" value={form.years} onChange={(e) => update("years", e.target.value)} /></Field>
+        </div>
+
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------------------------------------
+   FUEL LOG FORM MODAL
+---------------------------------------------------------------- */
+
+function FuelFormModal({ plate, onClose, onSave }) {
+  const [form, setForm] = useState({
+    date: todayISO(),
+    odometer: "",
+    liters: "",
+    cost: "",
+    station: "",
+    driver: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.date) return setError("กรุณาเลือกวันที่เติมน้ำมัน");
+    if (!form.liters || Number(form.liters) <= 0) return setError("กรุณากรอกจำนวนลิตร");
+    if (!form.cost || Number(form.cost) <= 0) return setError("กรุณากรอกจำนวนเงิน");
+
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        plate,
+        date: form.date,
+        odometer: Number(form.odometer) || 0,
+        liters: Number(form.liters) || 0,
+        cost: Number(form.cost) || 0,
+        station: form.station.trim() || "-",
+        driver: form.driver.trim() || "-",
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalShell title="บันทึกการเติมน้ำมัน" onClose={onClose}>
+      <div style={{ marginBottom: 12 }}><PlateBadge plate={plate} /></div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="วันที่เติม *"><input style={inputStyle} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
+          <Field label="เลขไมล์ปัจจุบัน (กม.)"><input style={inputStyle} type="number" placeholder="เช่น 125000" value={form.odometer} onChange={(e) => update("odometer", e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="จำนวนลิตร *"><input style={inputStyle} type="number" step="0.01" placeholder="0.00" value={form.liters} onChange={(e) => update("liters", e.target.value)} /></Field>
+          <Field label="จำนวนเงิน (บาท) *"><input style={inputStyle} type="number" placeholder="0.00" value={form.cost} onChange={(e) => update("cost", e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="ปั๊มน้ำมัน / สถานที่เติม"><input style={inputStyle} placeholder="เช่น ปั๊ม PTT สาขา..." value={form.station} onChange={(e) => update("station", e.target.value)} /></Field>
+          <Field label="ผู้บันทึก / คนขับ"><input style={inputStyle} placeholder="ชื่อคนขับ" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
+        </div>
+
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------------------------------------
+   VEHICLE DETAIL MODAL
+---------------------------------------------------------------- */
+
+function VehicleDetailModal({ vehicle, repairs, fuelLogs, onClose, onEdit, onDeleteRepair }) {
+  const [tab, setTab] = useState("repairs"); // repairs | fuel | specs
+  const v = computeVehicle(vehicle);
+  const vRepairs = repairs.filter((r) => r.plate === v.id);
+  const vFuel = fuelLogs.filter((f) => f.plate === v.id);
+  const totalRepairCost = sumCost(vRepairs);
+  const totalFuelCost = vFuel.reduce((s, f) => s + (Number(f.cost) || 0), 0);
+
+  return (
+    <ModalShell title={`รายละเอียดรถทะเบียน ${v.id}`} onClose={onClose} width={760}>
+      <div className="flex items-center justify-between pb-4 border-b mb-4" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-3">
+          <PlateBadge plate={v.id} size="lg" />
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{v.brand} {v.model} ({v.year})</div>
+            <div className="flex items-center gap-2 mt-1">
+              <TempChip temp={v.temp} />
+              <StatusChip status={v.status} reason={v.reason} />
+            </div>
+          </div>
+        </div>
+        <button onClick={() => { onClose(); onEdit(v); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 12, fontWeight: 600 }}>
+          <Pencil size={14} />แก้ไขข้อมูลรถ
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <Card style={{ padding: 12, background: "var(--surface-2)" }}>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ค่าซ่อมบำรุงรวม</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--accent-frost)", marginTop: 2 }}>{fmtMoney(totalRepairCost)} บ.</div>
+        </Card>
+        <Card style={{ padding: 12, background: "var(--surface-2)" }}>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ค่าน้ำมันรวม</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#E0A85B", marginTop: 2 }}>{fmtMoney(totalFuelCost)} บ.</div>
+        </Card>
+        <Card style={{ padding: 12, background: "var(--surface-2)" }}>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>คนขับประจำ</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginTop: 2 }}>{v.driver || "-"}</div>
+        </Card>
+      </div>
+
+      {/* Sub Tabs */}
+      <div className="flex gap-2 border-b mb-4" style={{ borderColor: "var(--border)" }}>
+        {[
+          { id: "repairs", label: `ประวัติการซ่อม (${vRepairs.length})`, icon: Wrench },
+          { id: "fuel", label: `ประวัติการเติมน้ำมัน (${vFuel.length})`, icon: Fuel },
+          { id: "specs", label: "กำหนดการ & สเปค", icon: ClipboardList },
+        ].map((t) => {
+          const Icon = t.icon;
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)} className="flex items-center gap-1.5 py-2 px-3 text-xs font-semibold border-b-2" style={{ borderBottomColor: active ? "var(--accent-frost)" : "transparent", color: active ? "var(--accent-frost)" : "var(--text-muted)" }}>
+              <Icon size={14} />{t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Contents */}
+      {tab === "repairs" && (
+        <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+          {vRepairs.length === 0 ? (
+            <div className="text-center py-8 text-xs style-muted">ไม่มีประวัติการซ่อมบำรุง</div>
+          ) : (
+            vRepairs.map((r) => (
+              <div key={r.id} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: "var(--text)" }}>{fmtDate(r.date)}</span>
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>{r.type}</span>
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: "var(--text)" }}>{r.description}</p>
+                  <div className="flex gap-3 text-xs style-muted mt-1">
+                    <span>อู่: {r.garage}</span>
+                    {r.pr_number && <span>PR: {r.pr_number}</span>}
+                    {r.po_number && <span>PO: {r.po_number}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold" style={{ color: r.cost ? "var(--text)" : "#D97706" }}>{fmtCost(r.cost)}</span>
+                  <button onClick={() => onDeleteRepair(r.id)} style={iconBtnStyle} title="ลบรายการ"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {tab === "fuel" && (
+        <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+          {vFuel.length === 0 ? (
+            <div className="text-center py-8 text-xs style-muted">ไม่มีประวัติการเติมน้ำมัน</div>
+          ) : (
+            vFuel.map((f, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                <div>
+                  <div className="text-xs font-bold" style={{ color: "var(--text)" }}>{fmtDate(f.date)}</div>
+                  <div className="text-xs style-muted mt-1">
+                    {f.odometer ? `เลขไมล์ ${fmtMoney(f.odometer)} กม.` : "ไม่ระบุเลขไมล์"} | {f.station}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-bold" style={{ color: "var(--text)" }}>{fmtMoney(f.cost)} บ.</div>
+                  <div className="text-xs style-muted">{f.liters} ลิตร</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {tab === "specs" && (
+        <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="flex flex-col gap-2">
+            <SubHeading>กำหนดการดูแลรักษา</SubHeading>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>PM เครื่องยนต์:</span><DueChip status={v.pmStatus} daysLeft={v.daysLeft} /></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>PM ตู้เย็น:</span><DueChip status={v.coolingPm.status} daysLeft={v.coolingPm.daysLeft} /></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>คาลิเบรทตู้เย็น:</span><DueChip status={v.calibration.status} daysLeft={v.calibration.daysLeft} /></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>ภาษี/พ.ร.บ.:</span><DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} /></div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <SubHeading>ข้อมูลตัวรถ / ตู้บรรทุก</SubHeading>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>ประเภทตู้:</span><TempChip temp={v.temp} /></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>แบรนด์ตู้เย็น:</span><span>{v.cooling_brand || "-"}</span></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>จำนวนล้อ / ความยาว:</span><span>{v.wheels} ล้อ / {v.length_m} ม.</span></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>ถังน้ำมัน:</span><span>{v.fuel_tank_liters} ลิตร</span></div>
+            <div className="flex justify-between py-1 border-b" style={{ borderColor: "var(--border)" }}><span>ลิฟท์ท้าย (Tail Lift):</span><span>{v.has_tail_lift ? "มี" : "ไม่มี"}</span></div>
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------------------------------------
+   DASHBOARD VIEW
+---------------------------------------------------------------- */
+
+function DashboardView({ vehicles, repairs, fuelLogs }) {
+  const readyCount = vehicles.filter((v) => v.status === "ready").length;
+  const notReadyCount = vehicles.length - readyCount;
+  
+  const overdueVehicles = vehicles.filter((v) => {
+    const cv = computeVehicle(v);
+    return cv.pmStatus === "overdue" || cv.coolingPm.status === "overdue" || cv.tax.status === "overdue";
+  });
+
+  const totalRepairCost = sumCost(repairs);
+  const totalFuelCost = fuelLogs.reduce((s, f) => s + (Number(f.cost) || 0), 0);
+
+  // กราฟสรุปค่าใช้จ่ายรายเดือน
+  const monthlyCostData = useMemo(() => {
+    const months = Array(12).fill(0).map((_, i) => ({ month: THAI_MONTHS[i], repair: 0, fuel: 0 }));
+    repairs.forEach((r) => {
+      if (r.date && !isPendingCost(r.cost)) {
+        const m = new Date(r.date).getMonth();
+        months[m].repair += Number(r.cost || 0);
+      }
+    });
+    fuelLogs.forEach((f) => {
+      if (f.date) {
+        const m = new Date(f.date).getMonth();
+        months[m].fuel += Number(f.cost || 0);
+      }
+    });
+    return months;
+  }, [repairs, fuelLogs]);
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* KPI Cards Header */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card style={{ padding: 16 }}>
+          <div className="flex items-center justify-between text-xs style-muted"><span>รถในฟลีตทั้งหมด</span><Truck size={16} /></div>
+          <div className="text-2xl font-bold mt-2" style={{ color: "var(--text)" }}>{vehicles.length} <span className="text-xs font-normal">คัน</span></div>
+          <div className="flex items-center gap-2 text-xs mt-2">
+            <span style={{ color: "#16A34A" }}>พร้อมใช้งาน: {readyCount}</span>
+            <span style={{ color: "#DC2626" }}>ซ่อมบำรุง: {notReadyCount}</span>
+          </div>
+        </Card>
+
+        <Card style={{ padding: 16 }}>
+          <div className="flex items-center justify-between text-xs style-muted"><span>ค่าซ่อมบำรุงรวม</span><Wrench size={16} /></div>
+          <div className="text-2xl font-bold mt-2" style={{ color: "var(--accent-frost)" }}>{fmtMoney(totalRepairCost)} <span className="text-xs font-normal">บาท</span></div>
+          <div className="text-xs style-muted mt-2">จากทั้งหมด {repairs.length} รายการ</div>
+        </Card>
+
+        <Card style={{ padding: 16 }}>
+          <div className="flex items-center justify-between text-xs style-muted"><span>ค่าน้ำมันเชื้อเพลิงรวม</span><Fuel size={16} /></div>
+          <div className="text-2xl font-bold mt-2" style={{ color: "#E0A85B" }}>{fmtMoney(totalFuelCost)} <span className="text-xs font-normal">บาท</span></div>
+          <div className="text-xs style-muted mt-2">จากบันทึก {fuelLogs.length} ครั้ง</div>
+        </Card>
+
+        <Card style={{ padding: 16 }}>
+          <div className="flex items-center justify-between text-xs style-muted"><span>ต้องดูแลเร่งด่วน (Overdue)</span><AlertTriangle size={16} style={{ color: "#DC2626" }} /></div>
+          <div className="text-2xl font-bold mt-2" style={{ color: "#DC2626" }}>{overdueVehicles.length} <span className="text-xs font-normal">คัน</span></div>
+          <div className="text-xs style-muted mt-2">เกินกำหนด PM หรือภาษี</div>
+        </Card>
+      </div>
+
+      {/* Monthly Expense Chart */}
+      <Card style={{ padding: 20 }}>
+        <SectionTitle icon={BarChart} sub="เปรียบเทียบค่าใช้จ่ายซ่อมบำรุงและค่าน้ำมันรายเดือน">แนวโน้มค่าใช้จ่ายประจำปี</SectionTitle>
+        <div style={{ width: "100%", height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyCostData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="month" tick={{ fill: "var(--text-muted)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => [`${fmtMoney(v)} บาท`, ""]} contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12 }} />
+              <Bar dataKey="repair" name="ค่าซ่อมบำรุง" fill="#0E8FA0" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="fuel" name="ค่าน้ำมัน" fill="#E0A85B" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   MAIN DASHBOARD APP LAYOUT
+---------------------------------------------------------------- */
+
+export default function FleetDashboard() {
+  const [theme, setTheme] = useState("light");
+  const [activeTab, setActiveTab] = useState("vehicles"); // vehicles | repairs | drivers | fuel | overview
+  
+  const [vehicles, setVehicles] = useState([]);
+  const [repairs, setRepairs] = useState([]);
+  const [fuelLogs, setFuelLogs] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  // Modals state
+  const [vModal, setVModal] = useState({ open: false, initial: null });
+  const [rModal, setRModal] = useState({ open: false, plate: "", initial: null });
+  const [dModal, setDModal] = useState({ open: false, initial: null });
+  const [fModal, setFModal] = useState({ open: false, plate: "" });
+  const [detailModal, setDetailModal] = useState({ open: false, vehicle: null });
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, label: "", onConfirm: null, pwd: false });
+
+  // Load Data
+  const loadAllData = async () => {
+    setLoading(true);
+    try {
+      const [vData, rData, fData, dData] = await Promise.all([
+        fetchVehicles(), fetchRepairs(), fetchFuelLogs(), fetchDrivers()
+      ]);
+      setVehicles(vData || []);
+      setRepairs(rData || []);
+      setFuelLogs(fData || []);
+      setDrivers(dData || []);
+    } catch (err) {
+      console.error("Error loading fleet data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
+  // Sync css variables based on theme
+  useEffect(() => {
+    const t = THEMES[theme];
+    Object.keys(t).forEach((k) => {
+      document.documentElement.style.setProperty(`--${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}`, t[k]);
+    });
+  }, [theme]);
+
+  // Vehicle Save / Delete
+  async function handleSaveVehicle(data) {
+    if (data.oldId && data.oldId !== data.id) {
+      await supabase.from("vehicles").delete().eq("id", data.oldId);
+    }
+    const { oldId, ...payload } = data;
+    const { error } = await supabase.from("vehicles").upsert(payload);
+    if (error) throw error;
+    await loadAllData();
+  }
+
+  async function handleDeleteVehicle(id) {
+    setDeleteConfirm({
+      open: true,
+      label: `คุณแน่ใจหรือไม่ว่าต้องการลบรถทะเบียน ${id}?`,
+      pwd: true,
+      onConfirm: async () => {
+        await supabase.from("vehicles").delete().eq("id", id);
+        setDeleteConfirm({ open: false });
+        await loadAllData();
+      },
+    });
+  }
+
+  // Repair Save / Delete
+  async function handleSaveRepair(data) {
+    const { error } = await supabase.from("repairs").upsert(data);
+    if (error) throw error;
+    await loadAllData();
+  }
+
+  async function handleDeleteRepair(id) {
+    setDeleteConfirm({
+      open: true,
+      label: "คุณแน่ใจหรือไม่ว่าต้องการลบรายการซ่อมนี้?",
+      pwd: false,
+      onConfirm: async () => {
+        await supabase.from("repairs").delete().eq("id", id);
+        setDeleteConfirm({ open: false });
+        await loadAllData();
+      },
+    });
+  }
+
+  // Fuel Save
+  async function handleSaveFuel(data) {
+    const { error } = await supabase.from("fuel_logs").insert(data);
+    if (error) throw error;
+    await loadAllData();
+  }
+
+  // Driver Save
+  async function handleSaveDriver(data) {
+    const { error } = await supabase.from("drivers").upsert(data);
+    if (error) throw error;
+    await loadAllData();
+  }
+
+  // Filtered List
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((v) => v.id.toLowerCase().includes(search.toLowerCase()) || v.brand.toLowerCase().includes(search.toLowerCase()) || v.driver.toLowerCase().includes(search.toLowerCase()));
+  }, [vehicles, search]);
+
+  return (
+    <div style={{ background: "var(--bg)", minHeight: "100vh", color: "var(--text)", fontFamily: "'Inter', sans-serif" }}>
+      {/* Header */}
+      <header style={{ background: "var(--header-bg)", backdropFilter: "blur(8px)", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 40, padding: "12px 24px" }} className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div style={{ background: "var(--accent-frost)", padding: 8, borderRadius: 10, color: "#fff" }}><Truck size={22} /></div>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: -0.5 }}>COLD CHAIN FLEET</h1>
+            <p style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการฟลีตรถขนส่งสินค้าแช่เย็น</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", padding: 8, borderRadius: 8, color: "var(--text)", cursor: "pointer" }}>
+            {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+          <button onClick={() => setVModal({ open: true, initial: null })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold" style={{ background: "var(--accent-frost)", color: "#fff" }}>
+            <Plus size={16} /> เพิ่มรถคันใหม่
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Layout */}
+      <main className="max-w-7xl mx-auto p-6">
+        {/* Navigation Tabs & Search */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex gap-2 border-b md:border-b-0 pb-2 md:pb-0" style={{ borderColor: "var(--border)" }}>
+            {[
+              { id: "overview", label: "ภาพรวมระบบ", icon: GaugeIcon },
+              { id: "vehicles", label: `รถในฟลีต (${vehicles.length})`, icon: Truck },
+              { id: "repairs", label: "ประวัติการซ่อม", icon: Wrench },
+              { id: "fuel", label: "บันทึกค่าน้ำมัน", icon: Fuel },
+              { id: "drivers", label: `คนขับรถ (${drivers.length})`, icon: User },
+            ].map((t) => {
+              const Icon = t.icon;
+              const active = activeTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setActiveTab(t.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all" style={{ background: active ? "var(--accent-frost)" : "var(--surface)", color: active ? "#fff" : "var(--text-muted)", border: `1px solid ${active ? "var(--accent-frost)" : "var(--border)"}` }}>
+                  <Icon size={15} />{t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-2.5" style={{ color: "var(--text-muted)" }} />
+              <input style={{ ...inputStyle, paddingLeft: 32, width: 220 }} placeholder="ค้นหา ทะเบียน, ยี่ห้อ, คนขับ..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <button onClick={() => exportToExcel(vehicles, "fleet_vehicles.xlsx", "Vehicles")} className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}>
+              <Download size={14} /> Export
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Views */}
+        {loading ? (
+          <div className="text-center py-20 text-sm style-muted">กำลังโหลดข้อมูลฟลีตรถ...</div>
+        ) : (
+          <>
+            {activeTab === "overview" && <DashboardView vehicles={vehicles} repairs={repairs} fuelLogs={fuelLogs} />}
+
+            {activeTab === "vehicles" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredVehicles.map((vehicle) => {
+                  const v = computeVehicle(vehicle);
+                  return (
+                    <Card key={v.id} style={{ padding: 18 }}>
+                      <div className="flex items-start justify-between mb-3">
+                        <PlateBadge plate={v.id} size="lg" />
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setDetailModal({ open: true, vehicle: v })} style={iconBtnStyle} title="ดูรายละเอียด"><FileText size={16} /></button>
+                          <button onClick={() => setVModal({ open: true, initial: v })} style={iconBtnStyle} title="แก้ไข"><Pencil size={16} /></button>
+                          <button onClick={() => handleDeleteVehicle(v.id)} style={iconBtnStyle} title="ลบ"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs mb-3">
+                        <span style={{ fontWeight: 700, color: "var(--text)" }}>{v.brand} {v.model} ({v.year})</span>
+                        <StatusChip status={v.status} reason={v.reason} />
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-4">
+                        <TempChip temp={v.temp} />
+                        <span className="text-xs style-muted">คนขับ: {v.driver || "-"}</span>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 pt-3 border-t text-xs" style={{ borderColor: "var(--border)" }}>
+                        <div className="flex justify-between"><span>PM เครื่องยนต์:</span><DueChip status={v.pmStatus} daysLeft={v.daysLeft} /></div>
+                        <div className="flex justify-between"><span>PM ตู้เย็น:</span><DueChip status={v.coolingPm.status} daysLeft={v.coolingPm.daysLeft} /></div>
+                        <div className="flex justify-between"><span>ภาษี/พ.ร.บ.:</span><DueChip status={v.tax.status} daysLeft={v.tax.daysLeft} /></div>
+                      </div>
+
+                      <div className="flex gap-2 mt-4 pt-2">
+                        <button onClick={() => setRModal({ open: true, plate: v.id, initial: null })} className="flex-1 py-1.5 rounded text-xs font-semibold" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}>+ บันทึกซ่อม</button>
+                        <button onClick={() => setFModal({ open: true, plate: v.id })} className="flex-1 py-1.5 rounded text-xs font-semibold" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}>+ เติมน้ำมัน</button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === "repairs" && (
+              <Card style={{ padding: 18 }}>
+                <SectionTitle icon={Wrench}>ประวัติรายการแจ้งซ่อมบำรุงทั้งหมด</SectionTitle>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                        <th className="py-2.5 px-3">วันที่</th>
+                        <th className="py-2.5 px-3">ทะเบียน</th>
+                        <th className="py-2.5 px-3">ประเภทงาน</th>
+                        <th className="py-2.5 px-3">รายละเอียด</th>
+                        <th className="py-2.5 px-3">อู่/ศูนย์บริการ</th>
+                        <th className="py-2.5 px-3">ค่าใช้จ่าย</th>
+                        <th className="py-2.5 px-3 text-right">จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {repairs.map((r) => (
+                        <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td className="py-3 px-3 font-semibold">{fmtDate(r.date)}</td>
+                          <td className="py-3 px-3"><PlateBadge plate={r.plate} /></td>
+                          <td className="py-3 px-3">{r.type}</td>
+                          <td className="py-3 px-3">{r.description}</td>
+                          <td className="py-3 px-3">{r.garage}</td>
+                          <td className="py-3 px-3 font-bold" style={{ color: r.cost ? "var(--text)" : "#D97706" }}>{fmtCost(r.cost)}</td>
+                          <td className="py-3 px-3 text-right">
+                            <button onClick={() => handleDeleteRepair(r.id)} style={iconBtnStyle}><Trash2 size={14} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+
+            {activeTab === "drivers" && (
+              <div>
+                <div className="flex justify-end mb-4">
+                  <button onClick={() => setDModal({ open: true, initial: null })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold" style={{ background: "var(--accent-frost)", color: "#fff" }}>
+                    <Plus size={15} /> เพิ่มคนขับรถ
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {drivers.map((d) => (
+                    <Card key={d.id} style={{ padding: 16 }}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div style={{ background: "var(--surface-2)", padding: 10, borderRadius: "50%", color: "var(--accent-frost)" }}><User size={20} /></div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{d.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>โทร: {d.phone || "-"}</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 text-xs pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+                        <div className="flex justify-between"><span>ใบขับขี่ประเภท:</span><span className="font-bold">{d.license_type}</span></div>
+                        <div className="flex justify-between"><span>วันหมดอายุ:</span><span>{fmtDate(d.expiry)}</span></div>
+                        <div className="flex justify-between"><span>ประจำรถ:</span><span className="font-bold">{d.vehicle}</span></div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+
+      {/* MODALS */}
+      {vModal.open && <VehicleFormModal initial={vModal.initial} existingPlates={vehicles.map((v) => v.id)} onClose={() => setVModal({ open: false, initial: null })} onSave={handleSaveVehicle} />}
+      {rModal.open && <RepairFormModal plate={rModal.plate} initial={rModal.initial} onClose={() => setRModal({ open: false, plate: "", initial: null })} onSave={handleSaveRepair} />}
+      {fModal.open && <FuelFormModal plate={fModal.plate} onClose={() => setFModal({ open: false, plate: "" })} onSave={handleSaveFuel} />}
+      {dModal.open && <DriverFormModal initial={dModal.initial} vehiclePlates={vehicles.map((v) => v.id)} onClose={() => setDModal({ open: false, initial: null })} onSave={handleSaveDriver} />}
+      {detailModal.open && <VehicleDetailModal vehicle={detailModal.vehicle} repairs={repairs} fuelLogs={fuelLogs} onClose={() => setDetailModal({ open: false, vehicle: null })} onEdit={(v) => setVModal({ open: true, initial: v })} onDeleteRepair={handleDeleteRepair} />}
+      {deleteConfirm.open && <ConfirmDelete label={deleteConfirm.label} requirePassword={deleteConfirm.pwd} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm({ open: false })} />}
+    </div>
+  );
+}
