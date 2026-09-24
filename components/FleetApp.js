@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -45,6 +45,15 @@ function daysBetween(a, b) { return Math.round((b - a) / (1000 * 60 * 60 * 24));
 function addDays(dateStr, n) { const d = new Date(dateStr); d.setDate(d.getDate() + n); return d; }
 function fmtDate(d) { if (!d) return "-"; const date = typeof d === "string" ? new Date(d) : d; return `${date.getDate()} ${THAI_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`; }
 function fmtMoney(n) { return Number(n || 0).toLocaleString("th-TH"); }
+
+// ส่งออกข้อมูลเป็นไฟล์ Excel (.xlsx) - โหลดไลบรารีเฉพาะตอนกดใช้งานจริง
+async function exportToExcel(rows, filename, sheetName) {
+  const XLSX = await import("xlsx");
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
 // cost === null หมายถึง "รอประเมินราคา"
 function isPendingCost(c) { return c === null || c === undefined; }
 function fmtCost(c) { return isPendingCost(c) ? "รอประเมินราคา" : `${fmtMoney(c)} บ.`; }
@@ -948,9 +957,27 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
 
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2"><ClipboardList size={15} style={{ color: "var(--accent-frost)" }} /><span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>ประวัติการซ่อม ({selRepairs.length} รายการ)</span></div>
-            <button onClick={() => setRepairForm("add")} className="flex items-center gap-1 rounded-lg px-3 py-1.5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--accent-frost)", fontSize: 12, fontWeight: 600 }}>
-              <Plus size={14} />เพิ่มรายการซ่อม
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const rows = selRepairs.map((r) => ({
+                    "ทะเบียน": r.plate, "วันที่": fmtDate(r.date), "ประเภท": r.type, "รายละเอียด": r.description,
+                    "เลขที่ PR": r.pr_number || "", "เลขที่ PO": r.po_number || "",
+                    "อู่/ศูนย์บริการ": r.garage, "สถานะ": r.status,
+                    "ค่าใช้จ่าย (บาท)": isPendingCost(r.cost) ? "รอประเมินราคา" : Number(r.cost || 0),
+                  }));
+                  await exportToExcel(rows, `ประวัติการซ่อม-${selVehicle.id}-${todayISO()}.xlsx`, "ประวัติการซ่อม");
+                }}
+                disabled={selRepairs.length === 0}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5"
+                style={{ background: "#16A34A", border: "none", color: "#FFFFFF", fontSize: 12, fontWeight: 600, opacity: selRepairs.length === 0 ? 0.6 : 1 }}
+              >
+                <Download size={14} />Excel
+              </button>
+              <button onClick={() => setRepairForm("add")} className="flex items-center gap-1 rounded-lg px-3 py-1.5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--accent-frost)", fontSize: 12, fontWeight: 600 }}>
+                <Plus size={14} />เพิ่มรายการซ่อม
+              </button>
+            </div>
           </div>
 
           {Object.keys(groupedByMonth).length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)" }}>ยังไม่มีประวัติการซ่อมสำหรับคันนี้</p>}
@@ -1139,6 +1166,27 @@ function RepairsLogView({ vehicles, repairs }) {
 
   const totalFiltered = sumCost(filtered);
 
+  const [exporting, setExporting] = useState(false);
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const rows = filtered.map((r) => ({
+        "ทะเบียน": r.plate,
+        "วันที่": fmtDate(r.date),
+        "ประเภท": r.type,
+        "รายละเอียด": r.description,
+        "เลขที่ PR": r.pr_number || "",
+        "เลขที่ PO": r.po_number || "",
+        "อู่/ศูนย์บริการ": r.garage,
+        "สถานะ": r.status,
+        "ค่าใช้จ่าย (บาท)": isPendingCost(r.cost) ? "รอประเมินราคา" : Number(r.cost || 0),
+      }));
+      await exportToExcel(rows, `ประวัติการซ่อม-${todayISO()}.xlsx`, "ประวัติการซ่อม");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const monthLabel = (key) => {
     const [y, m] = key.split("-");
     return `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
@@ -1146,9 +1194,14 @@ function RepairsLogView({ vehicles, repairs }) {
 
   return (
     <div>
-      <SectionTitle icon={ClipboardList} sub="รวมประวัติการซ่อมของรถทุกคัน กรองดูตามรถ / เดือน / คำค้นหาได้">
-        ประวัติการซ่อมทั้งหมด
-      </SectionTitle>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <SectionTitle icon={ClipboardList} sub="รวมประวัติการซ่อมของรถทุกคัน กรองดูตามรถ / เดือน / คำค้นหาได้">
+          ประวัติการซ่อมทั้งหมด
+        </SectionTitle>
+        <button onClick={handleExport} disabled={exporting || filtered.length === 0} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "#16A34A", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38, opacity: exporting || filtered.length === 0 ? 0.6 : 1 }}>
+          <Download size={16} />{exporting ? "กำลังสร้างไฟล์..." : "ดาวน์โหลด Excel"}
+        </button>
+      </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <select value={plateFilter} onChange={(e) => setPlateFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 140 }}>
