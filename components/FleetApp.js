@@ -1964,8 +1964,7 @@ export default function FleetApp({ user }) {
       </footer>
     </div>
   );
-}
-          <div className="grid grid-cols-2 gap-3">
+} <div className="grid grid-cols-2 gap-3">
           <Field label="วันหมดอายุใบขับขี่ *"><input style={inputStyle} type="date" value={form.expiry} onChange={(e) => update("expiry", e.target.value)} /></Field>
           <Field label="เบอร์โทรศัพท์"><input style={inputStyle} placeholder="081-XXX-XXXX" value={form.phone} onChange={(e) => update("phone", e.target.value)} /></Field>
         </div>
