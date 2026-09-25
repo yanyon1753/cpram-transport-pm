@@ -72,7 +72,7 @@ export default function Login() {
           <LogoMark />
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--text)" }}>CPRAM TRANSPORT</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารรถโอนย้ายสินค้าหน่วยงานยานยนต์-ขนส่ง</div>
           </div>
         </div>
 
