@@ -1935,8 +1935,8 @@ export default function FleetApp({ user }) {
               </span>
             </div>
             <div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: 0.3 }}>ยานยนต์-ขนส่ง</div>
-              <div style={{ fontSize: 40, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 25, color: "var(--text)", letterSpacing: 0.3 }}>ยานยนต์-ขนส่ง</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
             </div>
           </div>
           <nav className="flex items-center gap-1 rounded-lg p-1 flex-wrap" style={{ background: "var(--surface-2)" }}>
