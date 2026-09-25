@@ -71,7 +71,7 @@ export default function Login() {
         <div className="flex items-center gap-3 mb-8 justify-center">
           <LogoMark />
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--text)" }}>CPRAM TRANSPORT</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--text)" }}>ข้อมูลรถโอนย้ายสินค้าบริษัทซีพีแรม-(ยานยนต์-ขนส่ง)</div>
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารรถโอนย้ายสินค้าหน่วยงานยานยนต์-ขนส่ง</div>
           </div>
         </div>
