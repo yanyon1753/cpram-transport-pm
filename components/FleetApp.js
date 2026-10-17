@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download, Camera,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -55,6 +55,83 @@ async function exportToExcel(rows, filename, sheetName) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, filename);
+}
+
+/* ---------- รูปภาพพนักงานขับรถ (Supabase Storage แบบส่วนตัว) ---------- */
+const DRIVER_BUCKET = "driver-photos";
+
+// ย่อและบีบอัดรูปก่อนอัปโหลด (ประหยัดพื้นที่ + อัปโหลดเร็วบนมือถือ)
+async function compressImage(file, maxDim = 1280, quality = 0.82) {
+  if (!file.type || !file.type.startsWith("image/")) throw new Error("ไฟล์ที่เลือกไม่ใช่รูปภาพ");
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error("เปิดไฟล์รูปไม่ได้ ลองถ่ายใหม่หรือเลือกไฟล์ JPG/PNG"));
+      im.src = url;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob) throw new Error("บีบอัดรูปไม่สำเร็จ");
+    return blob;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function uploadDriverImage(file, kind) {
+  const blob = await compressImage(file);
+  const rand = Math.random().toString(36).slice(2, 8);
+  const path = `${kind}/${Date.now()}-${rand}.jpg`;
+  const { error } = await supabase.storage.from(DRIVER_BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+async function removeDriverImages(paths) {
+  const list = (paths || []).filter(Boolean);
+  if (!list.length) return;
+  try { await supabase.storage.from(DRIVER_BUCKET).remove(list); } catch (e) { /* ลบไม่สำเร็จไม่เป็นไร ไม่กระทบข้อมูลหลัก */ }
+}
+
+// ขอลิงก์ชั่วคราว (หมดอายุใน 1 ชม.) สำหรับดูรูปในที่เก็บไฟล์ส่วนตัว และต่ออายุให้อัตโนมัติ
+function useSignedUrls(paths) {
+  const [map, setMap] = useState({});
+  const [tick, setTick] = useState(0);
+  const key = Array.from(new Set((paths || []).filter(Boolean))).sort().join("|");
+
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 50 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const list = key ? key.split("|") : [];
+    if (!list.length) { setMap({}); return undefined; }
+    (async () => {
+      try {
+        const { data, error } = await supabase.storage.from(DRIVER_BUCKET).createSignedUrls(list, 3600);
+        if (cancelled || error || !data) return;
+        const next = {};
+        data.forEach((row) => { if (row.signedUrl && row.path) next[row.path] = row.signedUrl; });
+        setMap(next);
+      } catch (e) { /* ถ้าดึงรูปไม่ได้ ก็แค่ไม่แสดงรูป */ }
+    })();
+    return () => { cancelled = true; };
+  }, [key, tick]);
+
+  return map;
 }
 // cost === null หมายถึง "รอประเมินราคา"
 function isPendingCost(c) { return c === null || c === undefined; }
@@ -570,14 +647,69 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
    DRIVER FORM (add + edit)
 ---------------------------------------------------------------- */
 
-function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
+function ImagePicker({ label, existingUrl, file, removed, onPick, onRemove, round = false }) {
+  const [preview, setPreview] = useState(null);
+  useEffect(() => {
+    if (!file) { setPreview(null); return undefined; }
+    const u = URL.createObjectURL(file);
+    setPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  const shown = preview || (!removed ? existingUrl : null);
+
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-lg p-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, textAlign: "center" }}>{label}</span>
+      <div style={{ width: round ? 76 : 120, height: round ? 76 : 80, borderRadius: round ? 999 : 8, overflow: "hidden", background: "var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {shown ? <img src={shown} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Camera size={22} style={{ color: "var(--text-muted)" }} />}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap justify-center">
+        <label className="rounded-lg px-3 py-1.5" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          {shown ? "เปลี่ยนรูป" : "เลือก/ถ่ายรูป"}
+          <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onPick(f); e.target.value = ""; }} />
+        </label>
+        {shown && (
+          <button type="button" onClick={onRemove} className="rounded-lg px-3 py-1.5" style={{ background: "transparent", border: "1px solid #DC262655", color: "#DC2626", fontSize: 12, fontWeight: 600 }}>
+            ลบรูป
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ImageViewer({ url, title, onClose }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.82)", zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 900, width: "100%" }}>
+        <div className="flex items-center justify-between mb-2">
+          <span style={{ color: "#FFFFFF", fontWeight: 600, fontSize: 14 }}>{title}</span>
+          <button onClick={onClose} style={{ color: "#FFFFFF" }}><X size={20} /></button>
+        </div>
+        <img src={url} alt={title} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: 10, background: "#000" }} />
+      </div>
+    </div>
+  );
+}
+
+function DriverFormModal({ initial, onClose, onSave, vehiclePlates, urlMap = {} }) {
   const isEdit = !!initial;
-  const [form, setForm] = useState(() => initial ? { ...initial, years: String(initial.years) } : {
+  const [form, setForm] = useState(() => initial ? {
+    ...initial,
+    years: String(initial.years),
+    company_license_no: initial.company_license_no || "",
+    company_license_expiry: initial.company_license_expiry || "",
+  } : {
     name: "", license: "", license_type: "ท.2", expiry: "2027-01-01", phone: "", vehicle: "สำรอง", years: "1",
+    company_license_no: "", company_license_expiry: "",
   });
+  const [files, setFiles] = useState({ photo: null, license: null, company: null });
+  const [removed, setRemoved] = useState({ photo: false, license: false, company: false });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const pickFile = (k, f) => { setFiles((x) => ({ ...x, [k]: f })); setRemoved((x) => ({ ...x, [k]: false })); };
+  const removeFile = (k) => { setFiles((x) => ({ ...x, [k]: null })); setRemoved((x) => ({ ...x, [k]: true })); };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -586,14 +718,37 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
     if (!form.expiry) return setError("กรุณาเลือกวันหมดอายุใบขับขี่");
     setSaving(true);
     setError("");
+    const uploaded = []; // เก็บไว้ลบคืนถ้าบันทึกข้อมูลไม่สำเร็จ
     try {
+      const resolvePath = async (field, kind, oldPath) => {
+        if (files[field]) { const path = await uploadDriverImage(files[field], kind); uploaded.push(path); return path; }
+        if (removed[field]) return null;
+        return oldPath || null;
+      };
+      const photo_path = await resolvePath("photo", "face", initial && initial.photo_path);
+      const license_photo_path = await resolvePath("license", "license", initial && initial.license_photo_path);
+      const company_license_photo_path = await resolvePath("company", "company-license", initial && initial.company_license_photo_path);
+
       await onSave({
         id: isEdit ? initial.id : undefined,
         name: form.name.trim(), license: form.license.trim(), license_type: form.license_type,
         expiry: form.expiry, phone: form.phone.trim(), vehicle: form.vehicle, years: Number(form.years) || 0,
+        photo_path, license_photo_path, company_license_photo_path,
+        company_license_no: form.company_license_no.trim(),
+        company_license_expiry: form.company_license_expiry || null,
       });
+
+      // บันทึกสำเร็จแล้ว ค่อยลบไฟล์เก่าที่ถูกแทนที่/ลบออก
+      if (initial) {
+        const old = [];
+        if (initial.photo_path && initial.photo_path !== photo_path) old.push(initial.photo_path);
+        if (initial.license_photo_path && initial.license_photo_path !== license_photo_path) old.push(initial.license_photo_path);
+        if (initial.company_license_photo_path && initial.company_license_photo_path !== company_license_photo_path) old.push(initial.company_license_photo_path);
+        await removeDriverImages(old);
+      }
       onClose();
     } catch (err) {
+      await removeDriverImages(uploaded);
       setError(err.message || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setSaving(false);
@@ -601,8 +756,17 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
   }
 
   return (
-    <ModalShell title={isEdit ? "แก้ไขข้อมูลพนักงานขับรถ" : "เพิ่มพนักงานขับรถ"} onClose={onClose}>
+    <ModalShell title={isEdit ? "แก้ไขข้อมูลพนักงานขับรถ" : "เพิ่มพนักงานขับรถ"} onClose={onClose} width={680}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <SubHeading>รูปภาพ</SubHeading>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <ImagePicker label="รูปหน้าคนขับ" round file={files.photo} removed={removed.photo} existingUrl={initial && initial.photo_path ? urlMap[initial.photo_path] : null} onPick={(f) => pickFile("photo", f)} onRemove={() => removeFile("photo")} />
+          <ImagePicker label="รูปใบขับขี่" file={files.license} removed={removed.license} existingUrl={initial && initial.license_photo_path ? urlMap[initial.license_photo_path] : null} onPick={(f) => pickFile("license", f)} onRemove={() => removeFile("license")} />
+          <ImagePicker label="รูปใบขับขี่ของเครือ" file={files.company} removed={removed.company} existingUrl={initial && initial.company_license_photo_path ? urlMap[initial.company_license_photo_path] : null} onPick={(f) => pickFile("company", f)} onRemove={() => removeFile("company")} />
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>รูปจะถูกย่อขนาดอัตโนมัติ และเก็บแบบส่วนตัว (ต้องล็อกอินถึงจะเห็นได้)</div>
+
+        <SubHeading>ข้อมูลทั่วไป</SubHeading>
         <Field label="ชื่อ-นามสกุล *"><input style={inputStyle} value={form.name} onChange={(e) => update("name", e.target.value)} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="เลขที่ใบขับขี่ *"><input style={inputStyle} placeholder="เช่น 31-045678-9" value={form.license} onChange={(e) => update("license", e.target.value)} /></Field>
@@ -624,6 +788,11 @@ function DriverFormModal({ initial, onClose, onSave, vehiclePlates }) {
             </select>
           </Field>
           <Field label="ประสบการณ์ (ปี)"><input style={inputStyle} type="number" value={form.years} onChange={(e) => update("years", e.target.value)} /></Field>
+        </div>
+        <SubHeading>ใบขับขี่ของเครือ</SubHeading>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="เลขที่ใบขับขี่ของเครือ"><input style={inputStyle} placeholder="ถ้ามี" value={form.company_license_no} onChange={(e) => update("company_license_no", e.target.value)} /></Field>
+          <Field label="วันหมดอายุใบขับขี่ของเครือ"><input style={inputStyle} type="date" value={form.company_license_expiry} onChange={(e) => update("company_license_expiry", e.target.value)} /></Field>
         </div>
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
         <div className="flex items-center justify-end gap-2 mt-2">
@@ -1707,6 +1876,11 @@ function ReadinessView({ vehicles, onGoToVehicle }) {
 function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
   const [formState, setFormState] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [viewer, setViewer] = useState(null); // { url, title }
+
+  const urlMap = useSignedUrls(
+    drivers.flatMap((d) => [d.photo_path, d.license_photo_path, d.company_license_photo_path])
+  );
 
   return (
     <div>
@@ -1725,7 +1899,15 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
             <Card key={d.id} style={{ padding: 18 }}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center rounded-full" style={{ width: 42, height: 42, background: "rgba(14,143,160,0.15)", color: "var(--accent-frost)" }}><User size={20} /></div>
+                  {d.photo_path && urlMap[d.photo_path] ? (
+                    <img
+                      src={urlMap[d.photo_path]} alt={d.name}
+                      onClick={() => setViewer({ url: urlMap[d.photo_path], title: `รูปหน้า ${d.name}` })}
+                      style={{ width: 52, height: 52, borderRadius: 999, objectFit: "cover", cursor: "pointer", border: "2px solid var(--border)" }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center rounded-full" style={{ width: 52, height: 52, background: "rgba(14,143,160,0.15)", color: "var(--accent-frost)" }}><User size={22} /></div>
+                  )}
                   <div><div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{d.name}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>{d.years} ปีประสบการณ์</div></div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1741,6 +1923,29 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>วันหมดอายุใบขับขี่</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: expSoon ? "#D97706" : "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(d.expiry)}</span>
               </div>
+              {(d.company_license_no || d.company_license_expiry) && (
+                <div className="flex items-center justify-between rounded-lg px-3 py-2 mb-3" style={{ background: "var(--surface-2)" }}>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>ใบขับขี่เครือ {d.company_license_no ? `· ${d.company_license_no}` : ""}</span>
+                  {d.company_license_expiry && (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: daysBetween(TODAY, new Date(d.company_license_expiry)) <= 60 ? "#D97706" : "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(d.company_license_expiry)}</span>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                {d.license_photo_path && urlMap[d.license_photo_path] && (
+                  <button onClick={() => setViewer({ url: urlMap[d.license_photo_path], title: `ใบขับขี่ ${d.name}` })} className="inline-flex items-center gap-1 rounded-full px-3 py-1" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", fontSize: 12, fontWeight: 600 }}>
+                    <Camera size={12} />ดูรูปใบขับขี่
+                  </button>
+                )}
+                {d.company_license_photo_path && urlMap[d.company_license_photo_path] && (
+                  <button onClick={() => setViewer({ url: urlMap[d.company_license_photo_path], title: `ใบขับขี่ของเครือ ${d.name}` })} className="inline-flex items-center gap-1 rounded-full px-3 py-1" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", fontSize: 12, fontWeight: 600 }}>
+                    <Camera size={12} />ดูใบขับขี่เครือ
+                  </button>
+                )}
+                {!d.license_photo_path && !d.company_license_photo_path && (
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>ยังไม่ได้แนบรูปใบขับขี่</span>
+                )}
+              </div>
               <div className="flex items-center justify-between">
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>รถที่รับผิดชอบ</span>
                 {d.vehicle === "สำรอง" ? <span style={{ fontSize: 12, color: "var(--text-muted)" }}>พนักงานสำรอง</span> : <PlateBadge plate={d.vehicle} />}
@@ -1755,6 +1960,7 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
         <DriverFormModal
           initial={formState === "add" ? null : formState}
           vehiclePlates={vehiclePlates}
+          urlMap={urlMap}
           onClose={() => setFormState(null)}
           onSave={async (data) => { if (formState === "add") await onAdd(data); else await onUpdate(data.id, data); }}
         />
@@ -1767,6 +1973,8 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
           onConfirm={async () => { await onDelete(deleteTarget.id); setDeleteTarget(null); }}
         />
       )}
+
+      {viewer && <ImageViewer url={viewer.url} title={viewer.title} onClose={() => setViewer(null)} />}
     </div>
   );
 }
@@ -1892,8 +2100,10 @@ export default function FleetApp({ user }) {
     await loadAll();
   }
   async function handleDeleteDriver(id) {
+    const target = drivers.find((d) => d.id === id);
     const { error } = await supabase.from("drivers").delete().eq("id", id);
     if (error) throw error;
+    if (target) await removeDriverImages([target.photo_path, target.license_photo_path, target.company_license_photo_path]);
     await loadAll();
   }
 
@@ -1935,7 +2145,7 @@ export default function FleetApp({ user }) {
               </span>
             </div>
             <div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 25, color: "var(--text)", letterSpacing: 0.3 }}>ยานยนต์-ขนส่ง</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)", letterSpacing: 0.3 }}>CPRAM TRANSPORT</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ระบบบริหารจัดการรถขนส่งควบคุมอุณหภูมิ</div>
             </div>
           </div>
