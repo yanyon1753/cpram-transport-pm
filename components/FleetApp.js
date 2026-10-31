@@ -552,25 +552,80 @@ function VehicleFormModal({ initial, onClose, onSave, existingPlates }) {
    REPAIR FORM (add + edit)
 ---------------------------------------------------------------- */
 
+const REPAIR_SUGGESTIONS = {
+  "เครื่องยนต์": ["เปลี่ยนถ่ายน้ำมันเครื่อง", "เปลี่ยนกรองน้ำมันเชื้อเพลิง", "ซ่อมเครื่องยนต์"],
+  "ระบบทำความเย็น": ["เติมน้ำยาแอร์ตู้เย็น", "ล้างคอยล์เย็น", "เปลี่ยนคอมเพรสเซอร์"],
+  "ระบบไฟฟ้า": ["เปลี่ยนหลอดไฟ", "ซ่อมสายไฟ", "เปลี่ยนไดชาร์จ"],
+  "เบรก": ["เปลี่ยนผ้าเบรก", "เปลี่ยนน้ำมันเบรก", "ซ่อมระบบเบรก"],
+  "ยาง": ["เปลี่ยนยาง", "ปะยาง", "สลับยาง/ตั้งศูนย์ถ่วงล้อ"],
+  "แบตเตอรี่": ["เปลี่ยนแบตเตอรี่", "ชาร์จแบตเตอรี่"],
+  "ตัวถัง": ["ซ่อมตัวถัง", "ซ่อมประตูตู้", "ทำสี"],
+  "อื่นๆ": [],
+};
+
+function TapChip({ active, onClick, children, tone = "accent", style }) {
+  const color = tone === "amber" ? "#D97706" : tone === "green" ? "#16A34A" : "var(--accent-frost)";
+  const tint = tone === "amber" ? "rgba(217,119,6,0.12)" : tone === "green" ? "rgba(22,163,74,0.12)" : "rgba(14,143,160,0.14)";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        minHeight: 38, padding: "6px 14px", borderRadius: 999, fontSize: 13, cursor: "pointer",
+        fontWeight: active ? 700 : 500,
+        background: active ? tint : "var(--surface-2)",
+        border: `1.5px solid ${active ? color : "var(--border)"}`,
+        color: active ? color : "var(--text-muted)",
+        transition: "all .12s",
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StepLabel({ n, children }) {
+  return (
+    <div className="flex items-center gap-2" style={{ marginTop: 4 }}>
+      <span style={{ width: 22, height: 22, borderRadius: 999, background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{n}</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{children}</span>
+    </div>
+  );
+}
+
 function RepairFormModal({ plate, initial, onClose, onSave }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(() => initial ? {
     ...initial,
     cost: initial.cost === null || initial.cost === undefined ? "" : String(initial.cost),
     pendingEstimate: initial.cost === null || initial.cost === undefined,
+    garage: !initial.garage || initial.garage === "-" ? "" : initial.garage,
     pr_number: initial.pr_number || "",
     po_number: initial.po_number || "",
   } : {
     date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น", pendingEstimate: false, pr_number: "", po_number: "",
   });
+  const [garageCustom, setGarageCustom] = useState(() => !!(initial && initial.garage && initial.garage !== "-" && !GARAGE_OPTIONS.includes(initial.garage)));
+  const [showRefs, setShowRefs] = useState(() => !!(initial && (initial.pr_number || initial.po_number)));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
+  const yesterdayISO = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const descMissing = !!error && !form.description.trim();
+  const suggestions = REPAIR_SUGGESTIONS[form.type] || [];
+
+  function addSuggestion(text) {
+    const cur = form.description.trim();
+    if (!cur) update("description", text);
+    else if (!cur.includes(text)) update("description", `${cur}, ${text}`);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.date) return setError("กรุณาเลือกวันที่ซ่อม");
-    if (!form.description.trim()) return setError("กรุณากรอกรายละเอียดงานซ่อม");
+    if (!form.description.trim()) return setError("กรุณากรอกว่าซ่อมอะไร (พิมพ์เอง หรือแตะตัวอย่างด้านล่างช่องได้)");
     setSaving(true);
     setError("");
     try {
@@ -591,50 +646,107 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
   }
 
   return (
-    <ModalShell title={isEdit ? "แก้ไขรายการซ่อม" : "เพิ่มรายการซ่อม"} onClose={onClose}>
-      <div style={{ marginBottom: 12 }}><PlateBadge plate={plate} /></div>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="วันที่ซ่อม *"><input style={inputStyle} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
-          <Field label="ประเภทงานซ่อม">
-            <select style={inputStyle} value={form.type} onChange={(e) => update("type", e.target.value)}>
-              {REPAIR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </Field>
+    <ModalShell title={isEdit ? "แก้ไขรายการซ่อม" : "เพิ่มรายการซ่อม"} onClose={onClose} width={640}>
+      <div style={{ marginBottom: 14 }}><PlateBadge plate={plate} /></div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+        {/* 1. ซ่อมอะไร */}
+        <div className="flex flex-col gap-2">
+          <StepLabel n={1}>ซ่อมอะไร</StepLabel>
+          <div className="flex flex-wrap gap-2">
+            {REPAIR_TYPES.map((t) => (
+              <TapChip key={t} active={form.type === t} onClick={() => update("type", t)}>{t}</TapChip>
+            ))}
+          </div>
+          <input
+            style={{ ...inputStyle, padding: "11px 12px", fontSize: 14, borderColor: descMissing ? "#DC2626" : "var(--border)" }}
+            placeholder="ทำอะไรไปบ้าง เช่น เปลี่ยนผ้าเบรกหน้า"
+            value={form.description}
+            onChange={(e) => update("description", e.target.value)}
+          />
+          {suggestions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>แตะเพื่อเติม:</span>
+              {suggestions.map((sg) => (
+                <button key={sg} type="button" onClick={() => addSuggestion(sg)} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 999, background: "transparent", border: "1px dashed var(--border)", color: "var(--text-muted)", cursor: "pointer" }}>
+                  + {sg}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <Field label="รายละเอียดงานซ่อม (ทำอะไรไปบ้าง) *"><input style={inputStyle} placeholder="เช่น เปลี่ยนผ้าเบรกหน้า" value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="ค่าใช้จ่าย (บาท)">
-            <input
-              style={{ ...inputStyle, opacity: form.pendingEstimate ? 0.45 : 1 }}
-              type="number"
-              value={form.pendingEstimate ? "" : form.cost}
-              disabled={form.pendingEstimate}
-              placeholder={form.pendingEstimate ? "รอประเมินราคา" : ""}
-              onChange={(e) => update("cost", e.target.value)}
-            />
-          </Field>
-          <Field label="สถานะงาน">
-            <select style={inputStyle} value={form.status} onChange={(e) => update("status", e.target.value)}>
-              <option value="เสร็จสิ้น">เสร็จสิ้น</option>
-              <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
-            </select>
-          </Field>
+
+        {/* 2. เมื่อไหร่ / ที่ไหน */}
+        <div className="flex flex-col gap-2">
+          <StepLabel n={2}>เมื่อไหร่ / ที่ไหน</StepLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            <input style={{ ...inputStyle, width: "auto", minWidth: 160, padding: "9px 10px" }} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+            <TapChip active={form.date === todayISO()} onClick={() => update("date", todayISO())}>วันนี้</TapChip>
+            <TapChip active={form.date === yesterdayISO} onClick={() => update("date", yesterdayISO)}>เมื่อวาน</TapChip>
+          </div>
+          <div className="flex flex-col gap-2">
+            {GARAGE_OPTIONS.map((g) => (
+              <TapChip key={g} active={!garageCustom && form.garage === g} onClick={() => { setGarageCustom(false); update("garage", g); }} style={{ borderRadius: 10, textAlign: "left", width: "100%" }}>
+                {g}
+              </TapChip>
+            ))}
+            <TapChip active={garageCustom} onClick={() => { setGarageCustom(true); if (GARAGE_OPTIONS.includes(form.garage)) update("garage", ""); }} style={{ borderRadius: 10, textAlign: "left", width: "100%" }}>
+              อื่นๆ (พิมพ์ชื่อเอง)
+            </TapChip>
+            {garageCustom && (
+              <input style={{ ...inputStyle, padding: "10px 12px" }} autoFocus placeholder="พิมพ์ชื่ออู่/ศูนย์บริการ" value={form.garage} onChange={(e) => update("garage", e.target.value)} />
+            )}
+          </div>
         </div>
-        <label className="flex items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: form.pendingEstimate ? "rgba(217,119,6,0.1)" : "var(--surface-2)", border: `1px solid ${form.pendingEstimate ? "#D9770655" : "var(--border)"}`, cursor: "pointer" }}>
-          <input type="checkbox" checked={form.pendingEstimate} onChange={(e) => update("pendingEstimate", e.target.checked)} style={{ width: 15, height: 15, accentColor: "#D97706", cursor: "pointer" }} />
-          <Hourglass size={14} style={{ color: form.pendingEstimate ? "#D97706" : "var(--text-muted)" }} />
-          <span style={{ fontSize: 13, color: form.pendingEstimate ? "#D97706" : "var(--text-muted)", fontWeight: 600 }}>ยังไม่ทราบค่าใช้จ่าย (รอประเมินราคา)</span>
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <SelectOrOther label="อู่ / ศูนย์บริการ (ทำที่ไหน)" options={GARAGE_OPTIONS} value={form.garage} onChange={(v) => update("garage", v)} placeholder="พิมพ์ชื่ออู่/ศูนย์บริการ" />
-          <Field label="เลขที่ PR (ถ้ามี)"><input style={inputStyle} placeholder="เช่น PR-2569-00123" value={form.pr_number} onChange={(e) => update("pr_number", e.target.value)} /></Field>
+
+        {/* 3. ค่าใช้จ่ายและสถานะ */}
+        <div className="flex flex-col gap-2">
+          <StepLabel n={3}>ค่าใช้จ่ายและสถานะงาน</StepLabel>
+          <div className="grid grid-cols-2 gap-2">
+            <TapChip active={form.status === "เสร็จสิ้น"} tone="green" onClick={() => update("status", "เสร็จสิ้น")} style={{ borderRadius: 10, minHeight: 44 }}>
+              เสร็จสิ้นแล้ว
+            </TapChip>
+            <TapChip active={form.status === "กำลังดำเนินการ"} tone="amber" onClick={() => update("status", "กำลังดำเนินการ")} style={{ borderRadius: 10, minHeight: 44 }}>
+              กำลังดำเนินการ
+            </TapChip>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2" style={{ ...inputStyle, width: "auto", flex: "1 1 180px", padding: "6px 12px", opacity: form.pendingEstimate ? 0.5 : 1 }}>
+              <input
+                type="number" inputMode="decimal" min="0"
+                style={{ background: "transparent", border: "none", outline: "none", color: "var(--text)", fontSize: 20, fontWeight: 700, width: "100%" }}
+                value={form.pendingEstimate ? "" : form.cost}
+                disabled={form.pendingEstimate}
+                placeholder={form.pendingEstimate ? "รอประเมินราคา" : "0"}
+                onChange={(e) => update("cost", e.target.value)}
+              />
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>บาท</span>
+            </div>
+            <TapChip active={form.pendingEstimate} tone="amber" onClick={() => update("pendingEstimate", !form.pendingEstimate)}>
+              <span className="inline-flex items-center gap-1"><Hourglass size={14} />รอประเมินราคา</span>
+            </TapChip>
+          </div>
         </div>
-        <Field label="เลขที่ PO (ถ้ามี)"><input style={inputStyle} placeholder="เช่น PO-2569-00456" value={form.po_number} onChange={(e) => update("po_number", e.target.value)} /></Field>
+
+        {/* 4. PR / PO (ไม่บังคับ) */}
+        <div className="flex flex-col gap-2">
+          <button type="button" onClick={() => setShowRefs((v) => !v)} className="flex items-center gap-1" style={{ fontSize: 13, color: "var(--accent-frost)", fontWeight: 600, background: "transparent", border: "none", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
+            <ChevronRight size={14} style={{ transform: showRefs ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+            เพิ่มเลข PR / PO (ไม่บังคับ)
+          </button>
+          {showRefs && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="เลขที่ PR"><input style={inputStyle} placeholder="เช่น PR-2569-00123" value={form.pr_number} onChange={(e) => update("pr_number", e.target.value)} /></Field>
+              <Field label="เลขที่ PO"><input style={inputStyle} placeholder="เช่น PO-2569-00456" value={form.po_number} onChange={(e) => update("po_number", e.target.value)} /></Field>
+            </div>
+          )}
+        </div>
+
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+
+        <div className="flex items-center justify-end gap-2" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
+          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 18px", cursor: "pointer" }}>ยกเลิก</button>
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 26px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
