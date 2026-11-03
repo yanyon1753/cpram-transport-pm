@@ -1437,7 +1437,9 @@ function MaintenanceView({ vehicles }) {
    REPAIRS LOG VIEW (ประวัติการซ่อมทั้งหมด - ทุกคันรวมกัน)
 ---------------------------------------------------------------- */
 
-function RepairsLogView({ vehicles, repairs }) {
+function RepairsLogView({ vehicles, repairs, onUpdateRepair, onDeleteRepair, onGoToVehicle }) {
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [plateFilter, setPlateFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -1550,17 +1552,24 @@ function RepairsLogView({ vehicles, repairs }) {
 
       <Card style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1060 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["ทะเบียน", "วันที่", "ประเภท", "รายละเอียด", "เลขที่ PR", "เลขที่ PO", "อู่/ศูนย์บริการ", "สถานะ", "ค่าใช้จ่าย"].map((h) => (
+                {["ทะเบียน", "วันที่", "ประเภท", "รายละเอียด", "เลขที่ PR", "เลขที่ PO", "อู่/ศูนย์บริการ", "สถานะ", "ค่าใช้จ่าย", "จัดการ"].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.id} style={{ borderTop: "1px solid var(--border)" }}>
+                <tr
+                  key={r.id}
+                  onClick={() => setEditTarget(r)}
+                  title="คลิกเพื่อแก้ไขรายการซ่อมนี้"
+                  style={{ borderTop: "1px solid var(--border)", cursor: "pointer", transition: "background .12s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(14,143,160,0.07)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
                   <td style={{ padding: "10px 14px" }}><PlateBadge plate={r.plate} /></td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(r.date)}</td>
                   <td style={{ padding: "10px 14px" }}>
@@ -1572,15 +1581,39 @@ function RepairsLogView({ vehicles, repairs }) {
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#16A34A" : "#D97706" }}>{r.status}</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: isPendingCost(r.cost) ? "#D97706" : "var(--text)", fontWeight: 600 }}>{fmtCost(r.cost)}</td>
+                  <td style={{ padding: "10px 14px" }} onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setEditTarget(r)} title="แก้ไขรายการซ่อม" style={iconBtnStyle}><Pencil size={15} /></button>
+                      <button onClick={() => onGoToVehicle(r.plate)} title="ไปที่หน้ารถคันนี้" style={iconBtnStyle}><Truck size={15} /></button>
+                      <button onClick={() => setDeleteTarget(r)} title="ลบ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={15} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรายการซ่อมที่ตรงกับตัวกรอง</td></tr>
+                <tr><td colSpan={10} style={{ padding: "24px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่พบรายการซ่อมที่ตรงกับตัวกรอง</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </Card>
+
+      {editTarget && (
+        <RepairFormModal
+          plate={editTarget.plate}
+          initial={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={async (data) => { await onUpdateRepair(data); }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDelete
+          label={`ต้องการลบรายการซ่อม "${deleteTarget.description}" ของรถ ${deleteTarget.plate} ใช่หรือไม่?`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={async () => { await onDeleteRepair(deleteTarget.id); setDeleteTarget(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -2302,7 +2335,7 @@ export default function FleetApp({ user }) {
               />
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
-            {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} />}
+            {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} onUpdateRepair={handleUpdateRepair} onDeleteRepair={handleDeleteRepair} onGoToVehicle={goToVehicle} />}
             {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} dark={dark} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
