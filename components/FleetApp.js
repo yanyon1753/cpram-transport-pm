@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Cell,
 } from "recharts";
@@ -1623,34 +1623,69 @@ function RepairsLogView({ vehicles, repairs, onUpdateRepair, onDeleteRepair, onG
    FUEL FORM (add + edit)
 ---------------------------------------------------------------- */
 
-function FuelFormModal({ initial, vehicles, onClose, onSave }) {
+function FuelFormModal({ initial, vehicles, fuelLogs = [], onClose, onSave }) {
   const isEdit = !!initial;
+
+  // ค่าเริ่มต้นจากการเติมครั้งล่าสุด (ราคา/ปั๊ม) เพื่อไม่ต้องกรอกซ้ำ
+  const lastLog = useMemo(() => {
+    if (!fuelLogs.length) return null;
+    return [...fuelLogs].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const recentPlates = useMemo(() => {
+    const seen = [];
+    [...fuelLogs].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach((f) => {
+      if (!seen.includes(f.plate) && vehicles.some((v) => v.id === f.plate)) seen.push(f.plate);
+    });
+    return seen.slice(0, 6);
+  }, [fuelLogs, vehicles]);
+
+  const initStation = initial ? (initial.station || "") : (lastLog && lastLog.station ? lastLog.station : (STATION_OPTIONS[0] || ""));
   const [form, setForm] = useState(() => initial ? {
     ...initial,
     total_cost: String(initial.total_cost ?? ""),
     price_per_liter: String(initial.price_per_liter ?? ""),
     odometer: initial.odometer === null || initial.odometer === undefined ? "" : String(initial.odometer),
-    station: initial.station || "",
-    driver: initial.driver || "",
-    note: initial.note || "",
+    station: initStation, driver: initial.driver || "", note: initial.note || "",
   } : {
-    plate: vehicles[0]?.id || "", date: todayISO(), total_cost: "", price_per_liter: "",
-    odometer: "", station: "", driver: "", note: "",
+    plate: "", date: todayISO(), total_cost: "",
+    price_per_liter: lastLog ? String(lastLog.price_per_liter) : "",
+    odometer: "", station: initStation, driver: "", note: "",
   });
+  const [stationCustom, setStationCustom] = useState(() => !!initStation && !STATION_OPTIONS.includes(initStation));
+  const [showMore, setShowMore] = useState(() => !!(initial && (initial.odometer || initial.note)));
+  const [plateQuery, setPlateQuery] = useState("");
+  const [savedMsg, setSavedMsg] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const plateInputRef = useRef(null);
+  const amountRef = useRef(null);
   const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+
+  const selectedVehicle = vehicles.find((v) => v.id === form.plate);
+  const yesterdayISO = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  const norm = (t) => String(t || "").toLowerCase().replace(/[^0-9a-zก-๙]/g, "");
+  const matches = useMemo(() => {
+    const q = norm(plateQuery);
+    if (!q) return [];
+    return vehicles.filter((v) => norm(v.id).includes(q) || norm(`${v.brand}${v.model}`).includes(q)).slice(0, 8);
+  }, [plateQuery, vehicles]);
 
   const totalCostNum = Number(form.total_cost) || 0;
   const priceNum = Number(form.price_per_liter) || 0;
   const litersNum = priceNum > 0 ? Math.round((totalCostNum / priceNum) * 100) / 100 : 0;
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!form.plate) return setError("กรุณาเลือกทะเบียนรถ");
-    if (!form.date) return setError("กรุณาเลือกวันที่เติม");
-    if (totalCostNum <= 0) return setError("กรุณากรอกจำนวนเงินให้ถูกต้อง");
-    if (priceNum <= 0) return setError("กรุณากรอกราคาน้ำมันต่อลิตรให้ถูกต้อง");
+  function pickPlate(v) {
+    setForm((f) => ({ ...f, plate: v.id, driver: v.driver && v.driver !== "-" ? v.driver : "" }));
+    setPlateQuery("");
+    setError("");
+    setTimeout(() => { if (amountRef.current) amountRef.current.focus(); }, 60);
+  }
+
+  async function save(addNext) {
+    if (!form.plate) return setError("กรุณาเลือกรถก่อน (พิมพ์เลขทะเบียนค้นหาได้)");
+    if (totalCostNum <= 0) return setError("กรุณากรอกจำนวนเงิน");
+    if (priceNum <= 0) return setError("กรุณากรอกราคาน้ำมันต่อลิตร");
     setSaving(true);
     setError("");
     try {
@@ -1661,7 +1696,14 @@ function FuelFormModal({ initial, vehicles, onClose, onSave }) {
         odometer: form.odometer === "" ? null : Number(form.odometer),
         station: form.station.trim(), driver: form.driver.trim(), note: form.note.trim(),
       });
-      onClose();
+      if (addNext && !isEdit) {
+        setSavedMsg(`บันทึกแล้ว: ${form.plate} · ${litersNum.toLocaleString("th-TH", { maximumFractionDigits: 2 })} ลิตร · ${fmtMoney(totalCostNum)} บาท`);
+        setForm((f) => ({ ...f, plate: "", total_cost: "", odometer: "", note: "", driver: "" }));
+        setPlateQuery("");
+        setTimeout(() => { if (plateInputRef.current) plateInputRef.current.focus(); }, 60);
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError(err.message || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     } finally {
@@ -1670,42 +1712,142 @@ function FuelFormModal({ initial, vehicles, onClose, onSave }) {
   }
 
   return (
-    <ModalShell title={isEdit ? "แก้ไขรายการเติมน้ำมัน" : "บันทึกการเติมน้ำมัน"} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="ทะเบียนรถ *">
-            <select style={inputStyle} value={form.plate} onChange={(e) => update("plate", e.target.value)}>
-              {vehicles.map((v) => <option key={v.id} value={v.id}>{v.id} · {v.brand} {v.model}</option>)}
-            </select>
-          </Field>
-          <Field label="วันที่เติม *"><input style={inputStyle} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
+    <ModalShell title={isEdit ? "แก้ไขรายการเติมน้ำมัน" : "บันทึกการเติมน้ำมัน"} onClose={onClose} width={620}>
+      <form onSubmit={(e) => { e.preventDefault(); save(!isEdit); }} className="flex flex-col gap-4">
+
+        {savedMsg && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(22,163,74,0.12)", border: "1px solid #16A34A55", color: "#16A34A", fontSize: 13, fontWeight: 600 }}>
+            <CheckCircle2 size={16} />{savedMsg}
+          </div>
+        )}
+
+        {/* 1. เลือกรถ */}
+        <div className="flex flex-col gap-2">
+          <StepLabel n={1}>เติมให้รถคันไหน</StepLabel>
+          {selectedVehicle ? (
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--accent-frost)" }}>
+              <div className="flex items-center gap-3">
+                <PlateBadge plate={selectedVehicle.id} />
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{selectedVehicle.brand} {selectedVehicle.model}{form.driver ? ` · ${form.driver}` : ""}</span>
+              </div>
+              <button type="button" onClick={() => { update("plate", ""); setTimeout(() => { if (plateInputRef.current) plateInputRef.current.focus(); }, 60); }} style={{ fontSize: 12, color: "var(--accent-frost)", fontWeight: 600, background: "transparent", border: "none", cursor: "pointer" }}>
+                เปลี่ยนรถ
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2" style={{ ...inputStyle, padding: "10px 12px" }}>
+                <Search size={15} style={{ color: "var(--text-muted)" }} />
+                <input
+                  ref={plateInputRef} autoFocus={!isEdit}
+                  value={plateQuery} onChange={(e) => setPlateQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (matches[0]) pickPlate(matches[0]); } }}
+                  placeholder="พิมพ์เลขทะเบียน เช่น 9474"
+                  style={{ background: "transparent", border: "none", outline: "none", color: "var(--text)", fontSize: 15, width: "100%" }}
+                />
+              </div>
+              {matches.length > 0 && (
+                <div className="flex flex-col gap-1" style={{ maxHeight: 220, overflowY: "auto" }}>
+                  {matches.map((v) => (
+                    <button key={v.id} type="button" onClick={() => pickPlate(v)} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", textAlign: "left", cursor: "pointer" }}>
+                      <PlateBadge plate={v.id} />
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{v.brand} {v.model}{v.driver && v.driver !== "-" ? ` · ${v.driver}` : ""}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!plateQuery && recentPlates.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>ใช้บ่อย:</span>
+                  {recentPlates.map((pl) => (
+                    <TapChip key={pl} onClick={() => pickPlate(vehicles.find((v) => v.id === pl))} style={{ minHeight: 34, padding: "4px 12px", fontFamily: "'JetBrains Mono', monospace" }}>{pl}</TapChip>
+                  ))}
+                </div>
+              )}
+              {plateQuery && matches.length === 0 && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>ไม่พบทะเบียนที่ตรงกัน</span>}
+            </>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="จำนวนเงิน (บาท) *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 3000" value={form.total_cost} onChange={(e) => update("total_cost", e.target.value)} /></Field>
-          <Field label="ราคาน้ำมันต่อลิตร (บาท) *"><input style={inputStyle} type="number" step="0.01" placeholder="เช่น 31.94" value={form.price_per_liter} onChange={(e) => update("price_per_liter", e.target.value)} /></Field>
+        {/* 2. จำนวนเงิน + ราคา */}
+        <div className="flex flex-col gap-2">
+          <StepLabel n={2}>เติมเท่าไหร่</StepLabel>
+          <div className="grid grid-cols-5 gap-3">
+            <div className="flex items-center gap-2" style={{ ...inputStyle, gridColumn: "span 3", padding: "6px 12px" }}>
+              <input
+                ref={amountRef} type="number" inputMode="decimal" min="0" step="0.01"
+                value={form.total_cost} onChange={(e) => update("total_cost", e.target.value)}
+                placeholder="จำนวนเงิน"
+                style={{ background: "transparent", border: "none", outline: "none", color: "var(--text)", fontSize: 22, fontWeight: 700, width: "100%" }}
+              />
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>บาท</span>
+            </div>
+            <div className="flex items-center gap-1" style={{ ...inputStyle, gridColumn: "span 2", padding: "6px 10px" }}>
+              <input
+                type="number" inputMode="decimal" min="0" step="0.01"
+                value={form.price_per_liter} onChange={(e) => update("price_per_liter", e.target.value)}
+                placeholder="ราคา/ลิตร"
+                style={{ background: "transparent", border: "none", outline: "none", color: "var(--text)", fontSize: 16, fontWeight: 600, width: "100%" }}
+              />
+              <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>บ./ล.</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[500, 1000, 1500, 2000, 3000, 5000].map((amt) => (
+              <TapChip key={amt} active={Number(form.total_cost) === amt} onClick={() => update("total_cost", String(amt))} style={{ minHeight: 34, padding: "4px 12px" }}>{fmtMoney(amt)}</TapChip>
+            ))}
+          </div>
+          <div className="flex items-center justify-between rounded-lg px-4 py-3" style={{ background: "rgba(14,143,160,0.08)", border: "1px solid #0E8FA055" }}>
+            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>จำนวนลิตร (คำนวณให้อัตโนมัติ)</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: "var(--accent-frost)" }}>{litersNum.toLocaleString("th-TH", { maximumFractionDigits: 2 })} ลิตร</span>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg px-4 py-3" style={{ background: "rgba(14,143,160,0.08)", border: "1px solid #0E8FA055" }}>
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>จำนวนลิตร (คำนวณอัตโนมัติ)</span>
-          <span style={{ fontSize: 17, fontWeight: 700, color: "var(--accent-frost)" }}>{litersNum.toLocaleString("th-TH", { maximumFractionDigits: 2 })} ลิตร</span>
+        {/* 3. วันที่ + ปั๊ม */}
+        <div className="flex flex-col gap-2">
+          <StepLabel n={3}>วันที่และปั๊ม</StepLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            <input style={{ ...inputStyle, width: "auto", minWidth: 160, padding: "9px 10px" }} type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+            <TapChip active={form.date === todayISO()} onClick={() => update("date", todayISO())}>วันนี้</TapChip>
+            <TapChip active={form.date === yesterdayISO} onClick={() => update("date", yesterdayISO)}>เมื่อวาน</TapChip>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {STATION_OPTIONS.map((st) => (
+              <TapChip key={st} active={!stationCustom && form.station === st} onClick={() => { setStationCustom(false); update("station", st); }}>{st}</TapChip>
+            ))}
+            <TapChip active={stationCustom} onClick={() => { setStationCustom(true); if (STATION_OPTIONS.includes(form.station)) update("station", ""); }}>อื่นๆ</TapChip>
+          </div>
+          {stationCustom && (
+            <input style={{ ...inputStyle, padding: "10px 12px" }} placeholder="พิมพ์ชื่อปั๊ม/สถานที่เติม" value={form.station} onChange={(e) => update("station", e.target.value)} />
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="เลขไมล์ขณะเติม (ถ้ามี)"><input style={inputStyle} type="number" placeholder="เช่น 182450" value={form.odometer} onChange={(e) => update("odometer", e.target.value)} /></Field>
-          <SelectOrOther label="ปั๊ม / สถานที่เติม" options={STATION_OPTIONS} value={form.station} onChange={(v) => update("station", v)} placeholder="พิมพ์ชื่อปั๊ม/สถานที่เติม" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="คนขับที่เติม"><input style={inputStyle} placeholder="ชื่อ-นามสกุล" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
-          <Field label="หมายเหตุ"><input style={inputStyle} placeholder="ถ้ามี" value={form.note} onChange={(e) => update("note", e.target.value)} /></Field>
+        {/* รายละเอียดเพิ่มเติม (ไม่บังคับ) */}
+        <div className="flex flex-col gap-2">
+          <button type="button" onClick={() => setShowMore((v) => !v)} className="flex items-center gap-1" style={{ fontSize: 13, color: "var(--accent-frost)", fontWeight: 600, background: "transparent", border: "none", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>
+            <ChevronRight size={14} style={{ transform: showMore ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+            เพิ่มเลขไมล์ / คนขับ / หมายเหตุ (ไม่บังคับ)
+          </button>
+          {showMore && (
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="เลขไมล์"><input style={inputStyle} type="number" inputMode="numeric" placeholder="เช่น 182450" value={form.odometer} onChange={(e) => update("odometer", e.target.value)} /></Field>
+              <Field label="คนขับที่เติม"><input style={inputStyle} placeholder="ชื่อ-นามสกุล" value={form.driver} onChange={(e) => update("driver", e.target.value)} /></Field>
+              <Field label="หมายเหตุ"><input style={inputStyle} placeholder="ถ้ามี" value={form.note} onChange={(e) => update("note", e.target.value)} /></Field>
+            </div>
+          )}
         </div>
 
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "8px 16px", cursor: "pointer" }}>ยกเลิก</button>
-          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
-            {saving ? "กำลังบันทึก..." : "บันทึก"}
+
+        <div className="flex items-center justify-end gap-2 flex-wrap" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
+          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 16px", cursor: "pointer" }}>{savedMsg ? "เสร็จแล้ว ปิด" : "ยกเลิก"}</button>
+          {!isEdit && (
+            <button type="button" disabled={saving} onClick={() => save(false)} style={{ ...inputStyle, width: "auto", padding: "10px 16px", cursor: "pointer", color: "var(--accent-frost)", fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
+              บันทึกแล้วปิด
+            </button>
+          )}
+          <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "กำลังบันทึก..." : isEdit ? "บันทึก" : "บันทึก + เพิ่มคันต่อไป"}
           </button>
         </div>
       </form>
@@ -1917,6 +2059,7 @@ function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete, dark }) {
         <FuelFormModal
           initial={formState === "add" ? null : formState}
           vehicles={vehicles}
+          fuelLogs={fuelLogs}
           onClose={() => setFormState(null)}
           onSave={async (data) => { if (formState === "add") await onAdd(data); else await onUpdate(data.id, data); }}
         />
@@ -2175,10 +2318,11 @@ export default function FleetApp({ user }) {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(true); }, []);
 
-  async function loadAll() {
-    setLoading(true);
+  // initial=true แสดงหน้าโหลดเต็มจอเฉพาะครั้งแรก ส่วนหลังบันทึก/แก้ไข รีเฟรชข้อมูลเงียบๆ
+  async function loadAll(initial = false) {
+    if (initial) setLoading(true);
     try {
       const [v, r, d, fl] = await Promise.all([fetchVehicles(), fetchRepairs(), fetchDrivers(), fetchFuelLogs()]);
       setVehicles(v);
