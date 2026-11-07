@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download, Camera,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download, Camera, Upload,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -1856,6 +1856,296 @@ function FuelFormModal({ initial, vehicles, fuelLogs = [], onClose, onSave }) {
 }
 
 /* ---------------------------------------------------------------
+   นำเข้ารายงานเติมน้ำมันจากไฟล์ Excel (Transaction Report ของบัตรเติมน้ำมัน PTT)
+---------------------------------------------------------------- */
+
+const normText = (t) => String(t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+const normPlate = (t) => String(t ?? "").toLowerCase().replace(/[^0-9a-zก-๙]/g, "");
+
+// ชื่อปั๊มในรายงานเป็นรหัสย่อ เช่น "PTTST.D PULPERM OIL SERVI" -> แปลงเป็นชื่อที่ใช้ในระบบ
+function mapStationName(name, location) {
+  const n = String(name || "").trim();
+  const loc = String(location || "").trim();
+  if (/ลาดหลุมแก้ว/.test(loc) || /pulperm/i.test(n)) return STATION_OPTIONS[0] || n;
+  return n || loc;
+}
+
+function toISODate(v, XLSX) {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") {
+    const d = XLSX.SSF.parse_date_code(v);
+    return d ? `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}` : null;
+  }
+  const t = String(v).trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) {
+    const y = Number(m[3]) > 2400 ? Number(m[3]) - 543 : Number(m[3]);
+    return `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  return null;
+}
+
+async function parseFuelReport(file) {
+  const XLSX = await import("xlsx");
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
+  return parseFuelRows(rows, XLSX);
+}
+
+// แปลงตาราง (แถว x คอลัมน์) ของรายงานเป็นรายการเติมน้ำมัน
+function parseFuelRows(rows, XLSX) {
+  const hIdx = rows.findIndex((r) => r.some((c) => normText(c) === "plate no."));
+  if (hIdx < 0) throw new Error("ไม่พบหัวตาราง \"Plate No.\" ในไฟล์ ใช่รายงาน Transaction Report ของบัตรเติมน้ำมันหรือไม่?");
+
+  const heads = rows[hIdx].map(normText);
+  const col = (pred) => heads.findIndex(pred);
+  const idx = {
+    plate: col((h) => h === "plate no."),
+    date: col((h) => h === "date"),
+    time: col((h) => h === "time"),
+    ref: col((h) => h.startsWith("tax invoice")),
+    qty: col((h) => h.startsWith("quantity")),
+    price: col((h) => h === "price"),
+    amount: col((h) => h.startsWith("amount")),
+    odo: col((h) => h === "odometer"),
+    station: col((h) => h === "station name"),
+    location: col((h) => h === "location"),
+  };
+  const labels = { plate: "Plate No.", date: "Date", qty: "Quantity", price: "Price", amount: "Amount (THB)" };
+  const missing = Object.keys(labels).filter((k) => idx[k] < 0).map((k) => labels[k]);
+  if (missing.length) throw new Error(`ไฟล์ขาดคอลัมน์ที่จำเป็น: ${missing.join(", ")}`);
+
+  const num = (v) => {
+    if (typeof v === "number") return v;
+    const n = Number(String(v ?? "").replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : NaN;
+  };
+  const get = (r, k) => (idx[k] >= 0 ? r[idx[k]] : "");
+
+  const out = [];
+  rows.slice(hIdx + 1).forEach((r, i) => {
+    const plateRaw = String(get(r, "plate") ?? "").trim();
+    if (!plateRaw) return;
+    const date = toISODate(get(r, "date"), XLSX);
+    const liters = num(get(r, "qty"));
+    const amount = num(get(r, "amount"));
+    let price = num(get(r, "price"));
+    if (!(price > 0) && liters > 0 && amount > 0) price = Math.round((amount / liters) * 100) / 100;
+    const time = String(get(r, "time") ?? "").trim();
+    let ref = typeof get(r, "ref") === "number" ? "" : String(get(r, "ref") ?? "").trim();
+    // ไม่มีเลขใบกำกับ: สร้างรหัสจากทะเบียน+วันเวลา+ยอด เพื่อให้นำเข้าซ้ำแล้วยังตรวจจับได้
+    if (!ref && date) ref = `auto:${normPlate(plateRaw)}:${date}:${time}:${amount}`;
+    const odo = num(get(r, "odo"));
+    out.push({
+      key: `${i}-${ref}`,
+      line: hIdx + 2 + i,
+      plateRaw, date, liters, price, amount, ref,
+      odometer: odo > 0 ? odo : null, // ในรายงานบางรายการเป็น 0 = ไม่ได้กรอกเลขไมล์
+      station: mapStationName(get(r, "station"), get(r, "location")),
+      invalid: !date || !(liters > 0) || !(amount > 0),
+    });
+  });
+  return out;
+}
+
+const IMPORT_STATUS = {
+  new: { label: "ใหม่", color: "#16A34A" },
+  dup: { label: "มีในระบบแล้ว (ข้าม)", color: "#64748B" },
+  maybe: { label: "อาจซ้ำกับที่คีย์เอง", color: "#D97706" },
+  no_plate: { label: "ไม่พบทะเบียนในระบบ", color: "#DC2626" },
+  invalid: { label: "ข้อมูลไม่ครบ", color: "#DC2626" },
+};
+
+function FuelImportModal({ vehicles, fuelLogs, onClose, onImport }) {
+  const [fileName, setFileName] = useState("");
+  const [parsed, setParsed] = useState(null); // รายการดิบจากไฟล์
+  const [selected, setSelected] = useState({});
+  const [parsing, setParsing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  const plateMap = useMemo(() => {
+    const m = {};
+    vehicles.forEach((v) => { m[normPlate(v.id)] = v; });
+    return m;
+  }, [vehicles]);
+
+  // จัดสถานะแต่ละแถวเทียบกับข้อมูลที่มีอยู่ในระบบ
+  const rows = useMemo(() => {
+    if (!parsed) return [];
+    const refs = new Set(fuelLogs.map((f) => f.ref_no).filter(Boolean));
+    const manual = new Set(fuelLogs.filter((f) => !f.ref_no).map((f) => `${f.plate}|${f.date}|${Math.round(Number(f.total_cost))}`));
+    return parsed.map((r) => {
+      const vehicle = plateMap[normPlate(r.plateRaw)] || null;
+      let status = "new";
+      if (r.invalid) status = "invalid";
+      else if (!vehicle) status = "no_plate";
+      else if (r.ref && refs.has(r.ref)) status = "dup";
+      else if (manual.has(`${vehicle.id}|${r.date}|${Math.round(r.amount)}`)) status = "maybe";
+      return { ...r, vehicle, status };
+    });
+  }, [parsed, fuelLogs, plateMap]);
+
+  async function handleFile(file) {
+    if (!file) return;
+    setError(""); setResult(null); setParsing(true); setFileName(file.name);
+    try {
+      const list = await parseFuelReport(file);
+      if (!list.length) throw new Error("ไม่พบรายการเติมน้ำมันในไฟล์");
+      setParsed(list);
+    } catch (e) {
+      setParsed(null);
+      setError(e.message || "อ่านไฟล์ไม่สำเร็จ");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  // ตั้งค่าเริ่มต้น: ติ๊กเฉพาะรายการ "ใหม่"
+  useEffect(() => {
+    const sel = {};
+    rows.forEach((r) => { if (r.status === "new") sel[r.key] = true; });
+    setSelected(sel);
+  }, [parsed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const counts = rows.reduce((c, r) => { c[r.status] = (c[r.status] || 0) + 1; return c; }, {});
+  const chosen = rows.filter((r) => selected[r.key] && (r.status === "new" || r.status === "maybe"));
+  const chosenLiters = chosen.reduce((s, r) => s + r.liters, 0);
+  const chosenAmount = chosen.reduce((s, r) => s + r.amount, 0);
+  const unmatched = Object.entries(rows.filter((r) => r.status === "no_plate").reduce((m, r) => { m[r.plateRaw] = (m[r.plateRaw] || 0) + 1; return m; }, {}));
+
+  async function doImport() {
+    setImporting(true); setError("");
+    try {
+      const payload = chosen.map((r) => ({
+        plate: r.vehicle.id, date: r.date,
+        liters: r.liters, price_per_liter: r.price, total_cost: r.amount,
+        odometer: r.odometer, station: r.station,
+        driver: r.vehicle.driver && r.vehicle.driver !== "-" ? r.vehicle.driver : "",
+        note: "", ref_no: r.ref,
+      }));
+      const inserted = await onImport(payload);
+      setResult({ inserted, skipped: payload.length - inserted });
+      setParsed(null);
+    } catch (e) {
+      const msg = String(e.message || "");
+      setError(/ref_no/.test(msg) ? "ฐานข้อมูลยังไม่พร้อมรับการนำเข้า กรุณารัน migration_v9.sql ใน Supabase ก่อน" : (msg || "นำเข้าไม่สำเร็จ") + " (รายการที่นำเข้าไปแล้วบางส่วนจะไม่ซ้ำ ถ้าอัปโหลดไฟล์เดิมอีกครั้ง)");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <ModalShell title="นำเข้าการเติมน้ำมันจากไฟล์ Excel" onClose={onClose} width={1000}>
+      <div className="flex flex-col gap-4">
+
+        {result ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 rounded-lg px-4 py-3" style={{ background: "rgba(22,163,74,0.12)", border: "1px solid #16A34A55", color: "#16A34A", fontWeight: 700 }}>
+              <CheckCircle2 size={18} />นำเข้าสำเร็จ {result.inserted} รายการ{result.skipped > 0 ? ` (ข้ามที่ซ้ำ ${result.skipped} รายการ)` : ""}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setResult(null); setFileName(""); }} style={{ ...inputStyle, width: "auto", padding: "10px 16px", cursor: "pointer" }}>นำเข้าไฟล์อื่น</button>
+              <button onClick={onClose} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>เสร็จสิ้น</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="flex flex-col items-center justify-center gap-2 rounded-xl" style={{ border: "2px dashed var(--border)", background: "var(--surface-2)", padding: "22px 16px", cursor: "pointer", textAlign: "center" }}>
+              <Upload size={26} style={{ color: "var(--accent-frost)" }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{parsing ? "กำลังอ่านไฟล์..." : fileName ? `ไฟล์: ${fileName} (คลิกเพื่อเลือกไฟล์อื่น)` : "คลิกเลือกไฟล์ Excel รายงานการเติมน้ำมัน"}</span>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>รองรับรายงาน Transaction Report ของบัตรเติมน้ำมัน (.xlsx) ระบบจะแสดงตัวอย่างให้ตรวจก่อน ยังไม่บันทึกจนกว่าจะกดยืนยัน</span>
+              <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={(e) => { handleFile(e.target.files && e.target.files[0]); e.target.value = ""; }} />
+            </label>
+
+            {error && <div style={{ fontSize: 13, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "10px 12px" }}>{error}</div>}
+
+            {parsed && (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span style={{ fontSize: 13, color: "var(--text)", fontWeight: 700 }}>พบ {rows.length} รายการ:</span>
+                  {Object.keys(IMPORT_STATUS).filter((k) => counts[k]).map((k) => (
+                    <span key={k} className="inline-flex items-center rounded-full px-3 py-1" style={{ background: `${IMPORT_STATUS[k].color}1E`, color: IMPORT_STATUS[k].color, border: `1px solid ${IMPORT_STATUS[k].color}55`, fontSize: 12, fontWeight: 600 }}>
+                      {IMPORT_STATUS[k].label} {counts[k]}
+                    </span>
+                  ))}
+                </div>
+
+                {unmatched.length > 0 && (
+                  <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.08)", border: "1px solid #DC262640", borderRadius: 8, padding: "8px 12px" }}>
+                    ทะเบียนที่ไม่พบในระบบ: {unmatched.map(([p, n]) => `${p} (${n} รายการ)`).join(", ")} — ให้เพิ่มรถคันนี้ในแท็บ "รถทั้งหมด" ก่อน แล้วอัปโหลดไฟล์เดิมซ้ำได้เลย (รายการที่นำเข้าไปแล้วจะถูกข้ามให้เอง)
+                  </div>
+                )}
+
+                <div style={{ maxHeight: 340, overflow: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+                    <thead style={{ position: "sticky", top: 0, background: "var(--surface-2)" }}>
+                      <tr>
+                        <th style={{ padding: "8px 10px", width: 36 }}>
+                          <input type="checkbox"
+                            checked={rows.some((r) => r.status === "new") && rows.filter((r) => r.status === "new").every((r) => selected[r.key])}
+                            onChange={(e) => { const sel = { ...selected }; rows.forEach((r) => { if (r.status === "new") sel[r.key] = e.target.checked; }); setSelected(sel); }}
+                            title="เลือก/ยกเลิกทุกรายการใหม่"
+                          />
+                        </th>
+                        {["วันที่", "ทะเบียน", "ลิตร", "ราคา/ลิตร", "ยอดเงิน", "ปั๊ม", "สถานะ"].map((h) => (
+                          <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => {
+                        const st = IMPORT_STATUS[r.status];
+                        const canPick = r.status === "new" || r.status === "maybe";
+                        return (
+                          <tr key={r.key} style={{ borderTop: "1px solid var(--border)", opacity: canPick ? 1 : 0.6 }}>
+                            <td style={{ padding: "6px 10px" }}>
+                              <input type="checkbox" disabled={!canPick} checked={!!selected[r.key] && canPick} onChange={(e) => setSelected((s) => ({ ...s, [r.key]: e.target.checked }))} />
+                            </td>
+                            <td style={{ padding: "6px 10px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{r.date ? fmtDate(r.date) : "-"}</td>
+                            <td style={{ padding: "6px 10px" }}>
+                              {r.vehicle ? <PlateBadge plate={r.vehicle.id} /> : <span style={{ fontSize: 13, color: "#DC2626", fontFamily: "'JetBrains Mono', monospace" }}>{r.plateRaw}</span>}
+                            </td>
+                            <td style={{ padding: "6px 10px", fontSize: 13, color: "var(--text)" }}>{Number.isFinite(r.liters) ? r.liters.toLocaleString("th-TH", { maximumFractionDigits: 2 }) : "-"}</td>
+                            <td style={{ padding: "6px 10px", fontSize: 13, color: "var(--text-muted)" }}>{Number.isFinite(r.price) ? r.price.toFixed(2) : "-"}</td>
+                            <td style={{ padding: "6px 10px", fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{Number.isFinite(r.amount) ? fmtMoney(r.amount) : "-"}</td>
+                            <td style={{ padding: "6px 10px", fontSize: 12, color: "var(--text-muted)" }}>{r.station || "-"}</td>
+                            <td style={{ padding: "6px 10px" }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: st.color }}>{st.label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between flex-wrap gap-3" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                    เลือกนำเข้า <b style={{ color: "var(--text)" }}>{chosen.length}</b> รายการ · <b style={{ color: "var(--text)" }}>{chosenLiters.toLocaleString("th-TH", { maximumFractionDigits: 2 })}</b> ลิตร · <b style={{ color: "var(--accent-frost)" }}>{fmtMoney(Math.round(chosenAmount))}</b> บาท
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 16px", cursor: "pointer" }}>ยกเลิก</button>
+                    <button onClick={doImport} disabled={importing || chosen.length === 0} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: importing || chosen.length === 0 ? 0.5 : 1 }}>
+                      {importing ? "กำลังนำเข้า..." : `นำเข้า ${chosen.length} รายการ`}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------------------------------------
    FUEL VIEW (บันทึก + สรุปการเติมน้ำมัน)
 ---------------------------------------------------------------- */
 
@@ -1867,7 +2157,8 @@ function startOfWeek(dateStr) {
   return d.toISOString().slice(0, 10);
 }
 
-function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete, dark }) {
+function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete, onImport, dark }) {
+  const [showImport, setShowImport] = useState(false);
   const [plateFilter, setPlateFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [groupBy, setGroupBy] = useState("month"); // day | week | month | plate
@@ -1933,9 +2224,14 @@ function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete, dark }) {
         <SectionTitle icon={Fuel} sub="บันทึกการเติมน้ำมันและดูสรุปยอดรายวัน / รายสัปดาห์ / รายเดือน / รายคัน">
           การเติมน้ำมัน
         </SectionTitle>
-        <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38 }}>
-          <Plus size={16} />บันทึกการเติมน้ำมัน
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setShowImport(true)} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--accent-frost)", color: "var(--accent-frost)", fontSize: 13, fontWeight: 700, height: 38 }}>
+            <Upload size={16} />นำเข้าจากไฟล์ Excel
+          </button>
+          <button onClick={() => setFormState("add")} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38 }}>
+            <Plus size={16} />บันทึกการเติมน้ำมัน
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -2054,6 +2350,10 @@ function FuelView({ vehicles, fuelLogs, onAdd, onUpdate, onDelete, dark }) {
           </table>
         </div>
       </Card>
+
+      {showImport && (
+        <FuelImportModal vehicles={vehicles} fuelLogs={fuelLogs} onClose={() => setShowImport(false)} onImport={onImport} />
+      )}
 
       {formState && (
         <FuelFormModal
@@ -2396,6 +2696,19 @@ export default function FleetApp({ user }) {
     await loadAll();
   }
 
+  // นำเข้าหลายรายการจากไฟล์ Excel (ข้ามรายการที่เลขใบกำกับซ้ำ) คืนจำนวนที่เพิ่มจริง
+  async function handleImportFuel(rows) {
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += 100) {
+      const chunk = rows.slice(i, i + 100);
+      const { data, error } = await supabase.from("fuel_logs").upsert(chunk, { onConflict: "ref_no", ignoreDuplicates: true }).select("id");
+      if (error) throw error;
+      inserted += data ? data.length : 0;
+    }
+    await loadAll();
+    return inserted;
+  }
+
   async function handleAddFuel(f) {
     const { id, ...clean } = f;
     const { error } = await supabase.from("fuel_logs").insert(clean);
@@ -2480,7 +2793,7 @@ export default function FleetApp({ user }) {
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
             {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} onUpdateRepair={handleUpdateRepair} onDeleteRepair={handleDeleteRepair} onGoToVehicle={goToVehicle} />}
-            {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} dark={dark} />}
+            {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} onImport={handleImportFuel} dark={dark} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
             )}
