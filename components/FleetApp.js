@@ -56,6 +56,15 @@ function addDays(dateStr, n) { const d = new Date(dateStr); d.setDate(d.getDate(
 function fmtDate(d) { if (!d) return "-"; const date = typeof d === "string" ? new Date(d) : d; return `${date.getDate()} ${THAI_MONTHS[date.getMonth()]} ${date.getFullYear() + 543}`; }
 function fmtMoney(n) { return Number(n || 0).toLocaleString("th-TH"); }
 
+// เลข PR / PO: เก็บเฉพาะ "ตัวเลข" แล้วแสดงคำนำหน้า PR / PO ให้เอง (ข้อมูลเก่าที่พิมพ์ PR- นำหน้ามาแล้วก็รองรับ)
+function refNumber(prefix, v) {
+  return String(v ?? "").replace(new RegExp(`^\\s*${prefix}(?![A-Za-z])[\\s\\-._:/]*`, "i"), "").trim();
+}
+function refLabel(prefix, v) {
+  const n = refNumber(prefix, v);
+  return n ? `${prefix} ${n}` : "-";
+}
+
 // ส่งออกข้อมูลเป็นไฟล์ Excel (.xlsx) - โหลดไลบรารีเฉพาะตอนกดใช้งานจริง
 async function exportToExcel(rows, filename, sheetName) {
   const XLSX = await import("xlsx");
@@ -291,6 +300,21 @@ function Field({ label, children }) {
       <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+// ช่องกรอกเลข PR/PO: มีคำนำหน้า (PR / PO) ติดอยู่ด้านหน้า พิมพ์เฉพาะตัวเลข
+function RefInput({ prefix, value, onChange, placeholder }) {
+  return (
+    <div className="flex items-stretch" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--surface-2)" }}>
+      <span style={{ padding: "0 12px", display: "inline-flex", alignItems: "center", background: "rgba(14,143,160,0.14)", color: "var(--accent-frost)", fontWeight: 700, fontSize: 13, borderRight: "1px solid var(--border)" }}>{prefix}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(refNumber(prefix, e.target.value))}
+        placeholder={placeholder || "พิมพ์เฉพาะเลข"}
+        style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--text)", fontSize: 14, padding: "9px 10px" }}
+      />
+    </div>
   );
 }
 
@@ -614,8 +638,8 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
     cost: initial.cost === null || initial.cost === undefined ? "" : String(initial.cost),
     pendingEstimate: initial.cost === null || initial.cost === undefined,
     garage: !initial.garage || initial.garage === "-" ? "" : initial.garage,
-    pr_number: initial.pr_number || "",
-    po_number: initial.po_number || "",
+    pr_number: refNumber("PR", initial.pr_number),
+    po_number: refNumber("PO", initial.po_number),
   } : {
     date: todayISO(), type: REPAIR_TYPES[0], description: "", cost: "", garage: "", status: "เสร็จสิ้น", pendingEstimate: false, pr_number: "", po_number: "",
   });
@@ -749,8 +773,8 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
           </button>
           {showRefs && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="เลขที่ PR"><input style={inputStyle} placeholder="เช่น PR-2569-00123" value={form.pr_number} onChange={(e) => update("pr_number", e.target.value)} /></Field>
-              <Field label="เลขที่ PO"><input style={inputStyle} placeholder="เช่น PO-2569-00456" value={form.po_number} onChange={(e) => update("po_number", e.target.value)} /></Field>
+              <Field label="เลขที่ PR"><RefInput prefix="PR" value={form.pr_number} onChange={(v) => update("pr_number", v)} /></Field>
+              <Field label="เลขที่ PO"><RefInput prefix="PO" value={form.po_number} onChange={(v) => update("po_number", v)} /></Field>
             </div>
           )}
         </div>
@@ -1286,7 +1310,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                 onClick={async () => {
                   const rows = selRepairs.map((r) => ({
                     "ทะเบียน": r.plate, "วันที่": fmtDate(r.date), "ประเภท": r.type, "รายละเอียด": r.description,
-                    "เลขที่ PR": r.pr_number || "", "เลขที่ PO": r.po_number || "",
+                    "เลขที่ PR": r.pr_number ? refLabel("PR", r.pr_number) : "", "เลขที่ PO": r.po_number ? refLabel("PO", r.po_number) : "",
                     "อู่/ศูนย์บริการ": r.garage, "สถานะ": r.status,
                     "ค่าใช้จ่าย (บาท)": isPendingCost(r.cost) ? "รอประเมินราคา" : Number(r.cost || 0),
                   }));
@@ -1315,7 +1339,7 @@ function VehiclesView({ vehicles, repairs, onAdd, onUpdate, onDelete, onAddRepai
                     <div key={r.id} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: "var(--surface-2)" }}>
                       <div className="flex items-center gap-3">
                         <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
-                        <div><div style={{ fontSize: 13, color: "var(--text)" }}>{r.description}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · {r.status}{r.pr_number ? ` · PR ${r.pr_number}` : ""}{r.po_number ? ` · PO ${r.po_number}` : ""}</div></div>
+                        <div><div style={{ fontSize: 13, color: "var(--text)" }}>{r.description}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.garage} · {r.status}{r.pr_number ? ` · ${refLabel("PR", r.pr_number)}` : ""}{r.po_number ? ` · ${refLabel("PO", r.po_number)}` : ""}</div></div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div style={{ textAlign: "right" }}>
@@ -1481,7 +1505,7 @@ function RepairsLogView({ vehicles, repairs, onUpdateRepair, onDeleteRepair, onG
     }
     if (query.trim()) {
       const q = query.trim().toLowerCase();
-      list = list.filter((r) => r.description.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.plate.toLowerCase().includes(q) || (r.garage || "").toLowerCase().includes(q) || (r.pr_number || "").toLowerCase().includes(q) || (r.po_number || "").toLowerCase().includes(q));
+      list = list.filter((r) => r.description.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.plate.toLowerCase().includes(q) || (r.garage || "").toLowerCase().includes(q) || (r.pr_number || "").toLowerCase().includes(q) || (r.po_number || "").toLowerCase().includes(q) || refLabel("PR", r.pr_number).toLowerCase().includes(q) || refLabel("PO", r.po_number).toLowerCase().includes(q));
     }
     if (sortBy === "date_desc") list.sort((a, b) => new Date(b.date) - new Date(a.date));
     else if (sortBy === "date_asc") list.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1501,8 +1525,8 @@ function RepairsLogView({ vehicles, repairs, onUpdateRepair, onDeleteRepair, onG
         "วันที่": fmtDate(r.date),
         "ประเภท": r.type,
         "รายละเอียด": r.description,
-        "เลขที่ PR": r.pr_number || "",
-        "เลขที่ PO": r.po_number || "",
+        "เลขที่ PR": r.pr_number ? refLabel("PR", r.pr_number) : "",
+        "เลขที่ PO": r.po_number ? refLabel("PO", r.po_number) : "",
         "อู่/ศูนย์บริการ": r.garage,
         "สถานะ": r.status,
         "ค่าใช้จ่าย (บาท)": isPendingCost(r.cost) ? "รอประเมินราคา" : Number(r.cost || 0),
@@ -1589,8 +1613,8 @@ function RepairsLogView({ vehicles, repairs, onUpdateRepair, onDeleteRepair, onG
                     <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", whiteSpace: "nowrap" }}>{r.type}</span>
                   </td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)" }}>{r.description}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{r.pr_number || "-"}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{r.po_number || "-"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{refLabel("PR", r.pr_number)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{refLabel("PO", r.po_number)}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{r.garage}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: r.status === "เสร็จสิ้น" ? "#16A34A" : "#D97706" }}>{r.status}</td>
                   <td style={{ padding: "10px 14px", fontSize: 13, color: isPendingCost(r.cost) ? "#D97706" : "var(--text)", fontWeight: 600 }}>{fmtCost(r.cost)}</td>
@@ -2527,10 +2551,10 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
   const isEdit = !!initial;
   const [form, setForm] = useState(() => initial ? {
     ...initial,
-    pr_number: initial.pr_number || "", description: initial.description || "",
+    pr_number: refNumber("PR", initial.pr_number), description: initial.description || "",
     category: initial.category || "อื่นๆ", plate: initial.plate || "", vendor: initial.vendor || "",
     estimated_cost: initial.estimated_cost === null || initial.estimated_cost === undefined ? "" : String(initial.estimated_cost),
-    needed_by: initial.needed_by || "", po_number: initial.po_number || "",
+    needed_by: initial.needed_by || "", po_number: refNumber("PO", initial.po_number),
     requester: initial.requester || "", note: initial.note || "",
   } : {
     pr_number: "", request_date: todayISO(), description: "", category: PR_CATEGORIES[0], plate: "",
@@ -2541,7 +2565,6 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const descMissing = !!error && !form.description.trim();
-  const showPO = form.status === "เปิด PO แล้ว" || form.status === "รับของแล้ว";
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -2593,9 +2616,15 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
         <div className="flex flex-col gap-2">
           <StepLabel n={3}>เลขที่เอกสารและราคา</StepLabel>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="เลขที่ PR"><input style={inputStyle} placeholder="เช่น PR-2569-00123" value={form.pr_number} onChange={(e) => update("pr_number", e.target.value)} /></Field>
+            <Field label="เลขที่ PR"><RefInput prefix="PR" value={form.pr_number} onChange={(v) => update("pr_number", v)} /></Field>
+            <Field label="เลขที่ PO"><RefInput prefix="PO" value={form.po_number} onChange={(v) => update("po_number", v)} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Field label="วันที่เปิด PR *">
               <input style={inputStyle} type="date" value={form.request_date} onChange={(e) => update("request_date", e.target.value)} />
+            </Field>
+            <Field label="ต้องการใช้ภายในวันที่ (ไม่บังคับ)">
+              <input style={inputStyle} type="date" value={form.needed_by} onChange={(e) => update("needed_by", e.target.value)} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -2604,9 +2633,6 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
             </Field>
             <Field label="ผู้ขาย / ร้านค้า"><input style={inputStyle} placeholder="ถ้าทราบ" value={form.vendor} onChange={(e) => update("vendor", e.target.value)} /></Field>
           </div>
-          <Field label="ต้องการใช้ภายในวันที่ (ไม่บังคับ)">
-            <input style={{ ...inputStyle, width: "auto", minWidth: 180 }} type="date" value={form.needed_by} onChange={(e) => update("needed_by", e.target.value)} />
-          </Field>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -2616,9 +2642,6 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
               <TapChip key={st.key} color={st.color} active={form.status === st.key} onClick={() => update("status", st.key)}>{st.key}</TapChip>
             ))}
           </div>
-          {showPO && (
-            <Field label="เลขที่ PO"><input style={inputStyle} placeholder="เช่น PO-2569-00456" value={form.po_number} onChange={(e) => update("po_number", e.target.value)} /></Field>
-          )}
         </div>
 
         <div className="flex flex-col gap-2">
@@ -2647,67 +2670,102 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
   );
 }
 
-function PurchaseRequestsView({ vehicles, prs, tableError, onAdd, onUpdate, onDelete, onGoToVehicle }) {
+const SOURCE_META = {
+  pr: { label: "สั่งซื้อ", color: "#6366F1" },
+  repair: { label: "งานซ่อม", color: "#0E8FA0" },
+};
+const REPAIR_STATUS_COLORS = { "กำลังดำเนินการ": "#D97706", "เสร็จสิ้น": "#16A34A" };
+
+// หน้ารวม PR / PO ทั้งหมด: ใบขอซื้อ + งานซ่อมที่ใส่เลข PR/PO ไว้
+function PurchaseRequestsView({ vehicles, prs, repairs, tableError, onAdd, onUpdate, onDelete, onUpdateRepair, onGoToVehicle }) {
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [formState, setFormState] = useState(null);
+  const [formState, setFormState] = useState(null);   // แก้ไข/เปิด PR (สั่งซื้อ)
+  const [repairEdit, setRepairEdit] = useState(null); // แก้ไขงานซ่อม
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [actionError, setActionError] = useState("");
 
-  const statusColor = (k) => (PR_STATUSES.find((s) => s.key === k) || {}).color || "#64748B";
-  const isClosed = (s) => s === "รับของแล้ว" || s === "ยกเลิก";
+  const statusColor = (k) => (PR_STATUSES.find((s) => s.key === k) || {}).color || REPAIR_STATUS_COLORS[k] || "#64748B";
+  const allStatuses = [...PR_STATUSES.map((s) => s.key), "กำลังดำเนินการ", "เสร็จสิ้น"];
+  const allCategories = Array.from(new Set([...PR_CATEGORIES, ...REPAIR_TYPES]));
 
-  const counts = useMemo(() => {
-    const c = {};
-    prs.forEach((p) => { c[p.status] = (c[p.status] || 0) + 1; });
-    return c;
-  }, [prs]);
+  // รวมทั้ง 2 แหล่งเป็นรายการเดียวกัน
+  const items = useMemo(() => {
+    const fromPR = prs.map((p) => ({
+      uid: `pr-${p.id}`, source: "pr", raw: p, date: p.request_date, pr: p.pr_number, po: p.po_number,
+      category: p.category || "อื่นๆ", description: p.description, plate: p.plate, party: p.vendor || "",
+      amount: p.estimated_cost, status: p.status, neededBy: p.needed_by,
+      closed: p.status === "รับของแล้ว" || p.status === "ยกเลิก",
+      extra: [p.requester, p.note],
+    }));
+    const fromRepair = repairs.filter((r) => r.pr_number || r.po_number).map((r) => ({
+      uid: `rp-${r.id}`, source: "repair", raw: r, date: r.date, pr: r.pr_number, po: r.po_number,
+      category: r.type, description: r.description, plate: r.plate, party: r.garage && r.garage !== "-" ? r.garage : "",
+      amount: r.cost, status: r.status, neededBy: null,
+      closed: r.status === "เสร็จสิ้น",
+      extra: [],
+    }));
+    return [...fromPR, ...fromRepair];
+  }, [prs, repairs]);
+
+  const prCount = items.filter((i) => i.source === "pr").length;
+  const repairCount = items.length - prCount;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return prs
-      .filter((p) => statusFilter === "all" || p.status === statusFilter)
-      .filter((p) => categoryFilter === "all" || p.category === categoryFilter)
-      .filter((p) => !q || [p.pr_number, p.description, p.plate, p.vendor, p.po_number, p.requester, p.note].some((t) => String(t || "").toLowerCase().includes(q)))
-      .sort((a, b) => (a.request_date < b.request_date ? 1 : a.request_date > b.request_date ? -1 : 0));
-  }, [prs, statusFilter, categoryFilter, query]);
+    return items
+      .filter((i) => sourceFilter === "all" || i.source === sourceFilter)
+      .filter((i) => statusFilter === "all" || i.status === statusFilter)
+      .filter((i) => categoryFilter === "all" || i.category === categoryFilter)
+      .filter((i) => !q || [refLabel("PR", i.pr), refLabel("PO", i.po), i.pr, i.po, i.description, i.plate, i.party, i.category, ...i.extra]
+        .some((t) => String(t || "").toLowerCase().includes(q)))
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }, [items, sourceFilter, statusFilter, categoryFilter, query]);
 
-  const openAmount = prs.filter((p) => !isClosed(p.status)).reduce((s, p) => s + Number(p.estimated_cost || 0), 0);
-  const openNoPrice = prs.filter((p) => !isClosed(p.status) && (p.estimated_cost === null || p.estimated_cost === undefined)).length;
+  const open = items.filter((i) => !i.closed);
+  const openAmount = open.reduce((s, i) => s + (isPendingCost(i.amount) ? 0 : Number(i.amount || 0)), 0);
+  const openNoPrice = open.filter((i) => isPendingCost(i.amount)).length;
 
-  async function changeStatus(p, status) {
+  async function changeStatus(item, status) {
     setActionError("");
     try {
-      const { id, ...rest } = p;
-      await onUpdate({ id, ...rest, status });
+      if (item.source === "pr") await onUpdate({ ...item.raw, status });
+      else await onUpdateRepair({ ...item.raw, status });
     } catch (e) {
       setActionError(e.message || "เปลี่ยนสถานะไม่สำเร็จ");
     }
   }
 
   async function handleExport() {
-    const rows = filtered.map((p) => ({
-      "วันที่เปิด PR": fmtDate(p.request_date), "เลขที่ PR": p.pr_number || "", "หมวด": p.category || "",
-      "รายการ": p.description, "ทะเบียน": p.plate || "", "ผู้ขาย": p.vendor || "",
-      "ราคาประมาณการ (บาท)": p.estimated_cost === null || p.estimated_cost === undefined ? "ยังไม่ทราบราคา" : Number(p.estimated_cost),
-      "ต้องการใช้ภายใน": p.needed_by ? fmtDate(p.needed_by) : "", "สถานะ": p.status,
-      "เลขที่ PO": p.po_number || "", "ผู้ขอซื้อ": p.requester || "", "หมายเหตุ": p.note || "",
+    const rows = filtered.map((i) => ({
+      "ประเภท": SOURCE_META[i.source].label,
+      "วันที่": fmtDate(i.date),
+      "เลขที่ PR": i.pr ? refLabel("PR", i.pr) : "",
+      "เลขที่ PO": i.po ? refLabel("PO", i.po) : "",
+      "หมวด/ประเภท": i.category || "",
+      "รายการ": i.description,
+      "ทะเบียน": i.plate || "",
+      "ผู้ขาย/อู่": i.party || "",
+      "ยอดเงิน (บาท)": isPendingCost(i.amount) ? "ยังไม่ทราบราคา" : Number(i.amount),
+      "ต้องการใช้ภายใน": i.neededBy ? fmtDate(i.neededBy) : "",
+      "สถานะ": i.status,
     }));
-    await exportToExcel(rows, `ใบขอซื้อ-PR-${todayISO()}.xlsx`, "ใบขอซื้อ PR");
+    await exportToExcel(rows, `PR-PO-รวม-${todayISO()}.xlsx`, "PR PO รวม");
   }
 
   const kpis = [
-    { label: "รออนุมัติ", value: counts["รออนุมัติ"] || 0, color: "#D97706", icon: Hourglass },
-    { label: "อนุมัติ / เปิด PO แล้ว (รอของ)", value: (counts["อนุมัติแล้ว"] || 0) + (counts["เปิด PO แล้ว"] || 0), color: "#0E8FA0", icon: ClipboardList },
-    { label: "รับของแล้ว", value: counts["รับของแล้ว"] || 0, color: "#16A34A", icon: CheckCircle2 },
+    { label: "PR / PO ทั้งหมด", value: items.length, color: "var(--accent-frost)", icon: ClipboardList },
+    { label: "ใบขอซื้อ (สั่งซื้อ)", value: prCount, color: SOURCE_META.pr.color, icon: ShoppingCart },
+    { label: "งานซ่อมที่เปิด PR/PO", value: repairCount, color: SOURCE_META.repair.color, icon: Wrench },
   ];
 
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <SectionTitle icon={ShoppingCart} sub="บันทึกใบขอซื้ออะไหล่และสิ่งของต่างๆ ติดตามสถานะตั้งแต่รออนุมัติจนรับของ ไม่ต้องระบุทะเบียนก็ได้">
-          ใบขอซื้อ (PR)
+        <SectionTitle icon={ShoppingCart} sub="รวมใบขอซื้อและงานซ่อมที่เปิด PR/PO ไว้ในหน้าเดียว ติดตามสถานะได้ทั้งหมด ใบขอซื้อไม่ต้องระบุทะเบียนก็ได้">
+          PR / PO ทั้งหมด
         </SectionTitle>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={handleExport} disabled={filtered.length === 0} className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "#16A34A", color: "#FFFFFF", fontSize: 13, fontWeight: 700, height: 38, opacity: filtered.length === 0 ? 0.6 : 1 }}>
@@ -2721,7 +2779,7 @@ function PurchaseRequestsView({ vehicles, prs, tableError, onAdd, onUpdate, onDe
 
       {tableError && (
         <div style={{ marginBottom: 14, fontSize: 13, color: "#D97706", background: "rgba(217,119,6,0.1)", border: "1px solid #D9770655", borderRadius: 8, padding: "10px 14px" }}>
-          ยังใช้งานหน้านี้ไม่ได้: ฐานข้อมูลยังไม่มีตารางใบขอซื้อ กรุณารัน <b>migration_v10.sql</b> ใน Supabase ก่อน ({tableError})
+          ส่วนใบขอซื้อยังใช้ไม่ได้: ฐานข้อมูลยังไม่มีตารางใบขอซื้อ กรุณารัน <b>migration_v10.sql</b> ใน Supabase ก่อน ({tableError}) ส่วนงานซ่อมที่เปิด PR/PO ยังแสดงได้ตามปกติ
         </div>
       )}
       {actionError && <div style={{ marginBottom: 14, fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 12px" }}>{actionError}</div>}
@@ -2734,89 +2792,97 @@ function PurchaseRequestsView({ vehicles, prs, tableError, onAdd, onUpdate, onDe
           </Card>
         ))}
         <Card style={{ padding: 16 }}>
-          <div className="flex items-center gap-2 mb-1"><ShoppingCart size={16} style={{ color: "var(--accent-frost)" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>ยอดประมาณการที่ยังเปิดอยู่</span></div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "var(--accent-frost)" }}>{fmtMoney(Math.round(openAmount))} <span style={{ fontSize: 13, color: "var(--text-muted)" }}>บาท</span></div>
+          <div className="flex items-center gap-2 mb-1"><Hourglass size={16} style={{ color: "#D97706" }} /><span style={{ fontSize: 12, color: "var(--text-muted)" }}>ยังเปิดอยู่ {open.length} รายการ · ยอดรวม</span></div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#D97706" }}>{fmtMoney(Math.round(openAmount))} <span style={{ fontSize: 13, color: "var(--text-muted)" }}>บาท</span></div>
           {openNoPrice > 0 && <div style={{ fontSize: 11, color: "#D97706", marginTop: 2 }}>ไม่รวม {openNoPrice} รายการที่ยังไม่ทราบราคา</div>}
         </Card>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <TapChip active={statusFilter === "all"} onClick={() => setStatusFilter("all")} style={{ minHeight: 34 }}>ทั้งหมด {prs.length}</TapChip>
-        {PR_STATUSES.map((st) => (
-          <TapChip key={st.key} color={st.color} active={statusFilter === st.key} onClick={() => setStatusFilter(st.key)} style={{ minHeight: 34 }}>
-            {st.key} {counts[st.key] || 0}
-          </TapChip>
-        ))}
+        <TapChip active={sourceFilter === "all"} onClick={() => setSourceFilter("all")} style={{ minHeight: 34 }}>ทั้งหมด {items.length}</TapChip>
+        <TapChip color={SOURCE_META.pr.color} active={sourceFilter === "pr"} onClick={() => setSourceFilter("pr")} style={{ minHeight: 34 }}>สั่งซื้อ {prCount}</TapChip>
+        <TapChip color={SOURCE_META.repair.color} active={sourceFilter === "repair"} onClick={() => setSourceFilter("repair")} style={{ minHeight: 34 }}>งานซ่อม {repairCount}</TapChip>
       </div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 150 }}>
+          <option value="all">ทุกสถานะ</option>
+          {allStatuses.map((st) => <option key={st} value={st}>{st}</option>)}
+        </select>
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 150 }}>
-          <option value="all">ทุกหมวด</option>
-          {PR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          <option value="all">ทุกหมวด/ประเภท</option>
+          {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", minWidth: 240, flex: 1, maxWidth: 420 }}>
           <Search size={15} style={{ color: "var(--text-muted)" }} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหา เลขที่ PR / PO / รายการ / ทะเบียน / ผู้ขาย" style={{ background: "transparent", outline: "none", color: "var(--text)", fontSize: 13, width: "100%" }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหา เลข PR / PO / รายการ / ทะเบียน / ผู้ขาย" style={{ background: "transparent", outline: "none", color: "var(--text)", fontSize: 13, width: "100%" }} />
         </div>
       </div>
 
       <Card style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1120 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1240 }}>
             <thead>
               <tr style={{ background: "var(--surface-2)" }}>
-                {["วันที่เปิด", "เลขที่ PR", "รายการ", "ทะเบียน", "ผู้ขาย", "ประมาณการ", "เลขที่ PO", "สถานะ", "จัดการ"].map((h) => (
+                {["ประเภท", "วันที่", "เลขที่ PR", "เลขที่ PO", "รายการ", "ทะเบียน", "ผู้ขาย / อู่", "ยอดเงิน", "สถานะ", "จัดการ"].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => {
-                const late = p.needed_by && !isClosed(p.status) && p.needed_by < todayISO();
+              {filtered.map((i) => {
+                const meta = SOURCE_META[i.source];
+                const late = i.neededBy && !i.closed && i.neededBy < todayISO();
+                const statusOptions = i.source === "pr" ? PR_STATUSES.map((s) => s.key) : ["กำลังดำเนินการ", "เสร็จสิ้น"];
                 return (
                   <tr
-                    key={p.id} onClick={() => setFormState(p)} title="คลิกเพื่อแก้ไข"
-                    style={{ borderTop: "1px solid var(--border)", cursor: "pointer", transition: "background .12s", opacity: p.status === "ยกเลิก" ? 0.55 : 1 }}
+                    key={i.uid}
+                    onClick={() => (i.source === "pr" ? setFormState(i.raw) : setRepairEdit(i.raw))}
+                    title="คลิกเพื่อแก้ไข"
+                    style={{ borderTop: "1px solid var(--border)", cursor: "pointer", transition: "background .12s", opacity: i.status === "ยกเลิก" ? 0.55 : 1 }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(14,143,160,0.07)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
+                    <td style={{ padding: "10px 14px" }}>
+                      <span className="inline-flex items-center rounded-full px-2 py-1" style={{ background: `${meta.color}1E`, color: meta.color, border: `1px solid ${meta.color}55`, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{meta.label}</span>
+                    </td>
                     <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
-                      {fmtDate(p.request_date)}
-                      {p.needed_by && (
-                        <div style={{ fontSize: 11, color: late ? "#DC2626" : "var(--text-muted)", fontWeight: late ? 700 : 400 }}>ต้องการ {fmtDate(p.needed_by)}{late ? " (เลยกำหนด)" : ""}</div>
+                      {fmtDate(i.date)}
+                      {i.neededBy && (
+                        <div style={{ fontSize: 11, color: late ? "#DC2626" : "var(--text-muted)", fontWeight: late ? 700 : 400 }}>ต้องการ {fmtDate(i.neededBy)}{late ? " (เลยกำหนด)" : ""}</div>
                       )}
                     </td>
-                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace" }}>{p.pr_number || "-"}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{refLabel("PR", i.pr)}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{refLabel("PO", i.po)}</td>
                     <td style={{ padding: "10px 14px", maxWidth: 340 }}>
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", fontSize: 11, fontWeight: 600, marginBottom: 3 }}>{p.category || "อื่นๆ"}</span>
-                      <div style={{ fontSize: 13, color: "var(--text)", whiteSpace: "pre-wrap" }}>{p.description}</div>
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5" style={{ background: "rgba(14,143,160,0.12)", color: "var(--accent-frost)", fontSize: 11, fontWeight: 600, marginBottom: 3 }}>{i.category}</span>
+                      <div style={{ fontSize: 13, color: "var(--text)", whiteSpace: "pre-wrap" }}>{i.description}</div>
                     </td>
-                    <td style={{ padding: "10px 14px" }}>{p.plate ? <PlateBadge plate={p.plate} /> : <span style={{ fontSize: 12, color: "var(--text-muted)" }}>ทั่วไป</span>}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{p.vendor || "-"}</td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: p.estimated_cost === null || p.estimated_cost === undefined ? "#D97706" : "var(--text)", whiteSpace: "nowrap" }}>
-                      {p.estimated_cost === null || p.estimated_cost === undefined ? "ยังไม่ทราบราคา" : `${fmtMoney(p.estimated_cost)} บ.`}
+                    <td style={{ padding: "10px 14px" }}>{i.plate ? <PlateBadge plate={i.plate} /> : <span style={{ fontSize: 12, color: "var(--text-muted)" }}>ทั่วไป</span>}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>{i.party || "-"}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: isPendingCost(i.amount) ? "#D97706" : "var(--text)", whiteSpace: "nowrap" }}>
+                      {isPendingCost(i.amount) ? "ยังไม่ทราบราคา" : `${fmtMoney(i.amount)} บ.`}
                     </td>
-                    <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{p.po_number || "-"}</td>
                     <td style={{ padding: "10px 14px" }} onClick={(e) => e.stopPropagation()}>
                       <select
-                        value={p.status} onChange={(e) => changeStatus(p, e.target.value)} title="เปลี่ยนสถานะได้ทันที"
-                        style={{ background: `${statusColor(p.status)}1E`, color: statusColor(p.status), border: `1px solid ${statusColor(p.status)}66`, borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none" }}
+                        value={i.status} onChange={(e) => changeStatus(i, e.target.value)} title="เปลี่ยนสถานะได้ทันที"
+                        style={{ background: `${statusColor(i.status)}1E`, color: statusColor(i.status), border: `1px solid ${statusColor(i.status)}66`, borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none" }}
                       >
-                        {PR_STATUSES.map((st) => <option key={st.key} value={st.key} style={{ color: "#1E293B", background: "#FFFFFF" }}>{st.key}</option>)}
+                        {statusOptions.map((st) => <option key={st} value={st} style={{ color: "#1E293B", background: "#FFFFFF" }}>{st}</option>)}
                       </select>
                     </td>
                     <td style={{ padding: "10px 14px" }} onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => setFormState(p)} title="แก้ไข" style={iconBtnStyle}><Pencil size={15} /></button>
-                        {p.plate && <button onClick={() => onGoToVehicle(p.plate)} title="ไปที่หน้ารถคันนี้" style={iconBtnStyle}><Truck size={15} /></button>}
-                        <button onClick={() => setDeleteTarget(p)} title="ลบ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={15} /></button>
+                        <button onClick={() => (i.source === "pr" ? setFormState(i.raw) : setRepairEdit(i.raw))} title="แก้ไข" style={iconBtnStyle}><Pencil size={15} /></button>
+                        {i.plate && <button onClick={() => onGoToVehicle(i.plate)} title="ไปที่หน้ารถคันนี้" style={iconBtnStyle}><Truck size={15} /></button>}
+                        {i.source === "pr" && <button onClick={() => setDeleteTarget(i.raw)} title="ลบใบขอซื้อ" style={{ ...iconBtnStyle, color: "#DC2626" }}><Trash2 size={15} /></button>}
                       </div>
                     </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: "28px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-                  {prs.length === 0 ? "ยังไม่มีใบขอซื้อ กด \"เปิด PR ใหม่\" เพื่อเริ่มบันทึก" : "ไม่พบรายการที่ตรงกับตัวกรอง"}
+                <tr><td colSpan={10} style={{ padding: "28px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  {items.length === 0 ? "ยังไม่มี PR/PO กด \"เปิด PR ใหม่\" เพื่อเริ่มบันทึก หรือใส่เลข PR/PO ในรายการซ่อมแล้วจะมาแสดงที่นี่" : "ไม่พบรายการที่ตรงกับตัวกรอง"}
                 </td></tr>
               )}
             </tbody>
@@ -2833,9 +2899,18 @@ function PurchaseRequestsView({ vehicles, prs, tableError, onAdd, onUpdate, onDe
         />
       )}
 
+      {repairEdit && (
+        <RepairFormModal
+          plate={repairEdit.plate}
+          initial={repairEdit}
+          onClose={() => setRepairEdit(null)}
+          onSave={async (data) => { await onUpdateRepair(data); }}
+        />
+      )}
+
       {deleteTarget && (
         <ConfirmDelete
-          label={`ต้องการลบใบขอซื้อ ${deleteTarget.pr_number || ""} "${String(deleteTarget.description).slice(0, 60)}" ใช่หรือไม่?`}
+          label={`ต้องการลบใบขอซื้อ ${deleteTarget.pr_number ? refLabel("PR", deleteTarget.pr_number) : ""} "${String(deleteTarget.description).slice(0, 60)}" ใช่หรือไม่?`}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => { try { await onDelete(deleteTarget.id); } catch (e) { setActionError(e.message || "ลบไม่สำเร็จ"); } setDeleteTarget(null); }}
         />
@@ -2964,7 +3039,7 @@ const TABS = [
   { key: "vehicles", label: "รถทั้งหมด", icon: Truck },
   { key: "maintenance", label: "บำรุงรักษา", icon: Settings2 },
   { key: "repairlog", label: "ประวัติการซ่อม", icon: ClipboardList },
-  { key: "pr", label: "ใบขอซื้อ PR", icon: ShoppingCart },
+  { key: "pr", label: "PR / PO", icon: ShoppingCart },
   { key: "fuel", label: "เติมน้ำมัน", icon: Fuel },
   { key: "drivers", label: "พนักงานขับรถ", icon: User },
 ];
@@ -3207,7 +3282,7 @@ export default function FleetApp({ user }) {
             )}
             {tab === "maintenance" && <MaintenanceView vehicles={computedVehicles} />}
             {tab === "repairlog" && <RepairsLogView vehicles={computedVehicles} repairs={repairs} onUpdateRepair={handleUpdateRepair} onDeleteRepair={handleDeleteRepair} onGoToVehicle={goToVehicle} />}
-            {tab === "pr" && <PurchaseRequestsView vehicles={vehicles} prs={prs} tableError={prError} onAdd={handleAddPR} onUpdate={handleUpdatePR} onDelete={handleDeletePR} onGoToVehicle={goToVehicle} />}
+            {tab === "pr" && <PurchaseRequestsView vehicles={vehicles} prs={prs} repairs={repairs} tableError={prError} onAdd={handleAddPR} onUpdate={handleUpdatePR} onDelete={handleDeletePR} onUpdateRepair={handleUpdateRepair} onGoToVehicle={goToVehicle} />}
             {tab === "fuel" && <FuelView vehicles={vehicles} fuelLogs={fuelLogs} onAdd={handleAddFuel} onUpdate={handleUpdateFuel} onDelete={handleDeleteFuel} onImport={handleImportFuel} dark={dark} />}
             {tab === "drivers" && (
               <DriversView drivers={drivers} vehiclePlates={vehicles.map((v) => v.id)} onAdd={handleAddDriver} onUpdate={handleUpdateDriver} onDelete={handleDeleteDriver} />
