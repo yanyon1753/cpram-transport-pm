@@ -5,7 +5,7 @@ import {
 import {
   Truck, Snowflake, Droplet, Sun, Wrench, Calendar, AlertTriangle, CheckCircle2,
   User, Phone, Search, X, Clock3, CreditCard, ChevronRight, ClipboardList, Gauge,
-  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download, Camera, Upload, ShoppingCart,
+  Plus, Trash2, Pencil, LogOut, Gauge as GaugeIcon, Settings2, FileText, Lock, Hourglass, Fuel, Package, Box, Moon, Download, Camera, Upload, ShoppingCart, Palette,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -271,7 +271,7 @@ function DueChip({ status, daysLeft }) {
 }
 
 function Card({ children, style }) {
-  return <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 2px 10px rgba(15,23,42,0.04)", ...style }}>{children}</div>;
+  return <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 2px 10px rgba(15,23,42,0.04)", backdropFilter: "var(--card-blur, none)", WebkitBackdropFilter: "var(--card-blur, none)", ...style }}>{children}</div>;
 }
 
 function SectionTitle({ icon: Icon, children, sub }) {
@@ -353,7 +353,7 @@ function ModalShell({ title, onClose, children, width = 560 }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: width, width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
-        <Card style={{ padding: 22 }}>
+        <Card style={{ padding: 22, background: "var(--surface-solid, var(--surface))" }}>
           <div className="flex items-center justify-between mb-5">
             <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>{title}</span>
             <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={18} /></button>
@@ -384,7 +384,7 @@ function ConfirmDelete({ label, onConfirm, onCancel, requirePassword = false }) 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.55)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, width: "100%" }}>
-        <Card style={{ padding: 20 }}>
+        <Card style={{ padding: 20, background: "var(--surface-solid, var(--surface))" }}>
           <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} style={{ color: "#DC2626" }} /><span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>ยืนยันการลบ</span></div>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>{label}</p>
 
@@ -781,7 +781,7 @@ function RepairFormModal({ plate, initial, onClose, onSave }) {
 
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
 
-        <div className="flex items-center justify-end gap-2" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-end gap-2" style={{ position: "sticky", bottom: 0, background: "var(--surface-solid, var(--surface))", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 18px", cursor: "pointer" }}>ยกเลิก</button>
           <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 26px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
@@ -1876,7 +1876,7 @@ function FuelFormModal({ initial, vehicles, fuelLogs = [], onClose, onSave }) {
 
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
 
-        <div className="flex items-center justify-end gap-2 flex-wrap" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-end gap-2 flex-wrap" style={{ position: "sticky", bottom: 0, background: "var(--surface-solid, var(--surface))", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 16px", cursor: "pointer" }}>{savedMsg ? "เสร็จแล้ว ปิด" : "ยกเลิก"}</button>
           {!isEdit && (
             <button type="button" disabled={saving} onClick={() => save(false)} style={{ ...inputStyle, width: "auto", padding: "10px 16px", cursor: "pointer", color: "var(--accent-frost)", fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
@@ -2162,7 +2162,7 @@ function FuelImportModal({ vehicles, fuelLogs, onClose, onImport }) {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between flex-wrap gap-3" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between flex-wrap gap-3" style={{ position: "sticky", bottom: 0, background: "var(--surface-solid, var(--surface))", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                   <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
                     เลือกนำเข้า <b style={{ color: "var(--text)" }}>{chosen.length}</b> รายการ · <b style={{ color: "var(--text)" }}>{chosenLiters.toLocaleString("th-TH", { maximumFractionDigits: 2 })}</b> ลิตร · <b style={{ color: "var(--accent-frost)" }}>{fmtMoney(Math.round(chosenAmount))}</b> บาท
                   </span>
@@ -2659,7 +2659,7 @@ function PRFormModal({ initial, vehicles, onClose, onSave }) {
 
         {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
 
-        <div className="flex items-center justify-end gap-2" style={{ position: "sticky", bottom: 0, background: "var(--surface)", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-end gap-2" style={{ position: "sticky", bottom: 0, background: "var(--surface-solid, var(--surface))", paddingTop: 12, marginTop: 2, borderTop: "1px solid var(--border)" }}>
           <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 18px", cursor: "pointer" }}>ยกเลิก</button>
           <button type="submit" disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 26px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
             {saving ? "กำลังบันทึก..." : "บันทึก"}
@@ -3030,6 +3030,131 @@ function DriversView({ drivers, vehiclePlates, onAdd, onUpdate, onDelete }) {
 }
 
 /* ---------------------------------------------------------------
+   ตกแต่งพื้นหลังเว็บ (ใช้ร่วมกันทุกคน เก็บใน Supabase)
+---------------------------------------------------------------- */
+
+const BG_BUCKET = "app-assets";
+
+function hexA(hex, a) {
+  const n = parseInt(String(hex).replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+async function uploadBgImage(file) {
+  const blob = await compressImage(file, 1920, 0.8);
+  const rand = Math.random().toString(36).slice(2, 8);
+  const path = `background/${Date.now()}-${rand}.jpg`;
+  const { error } = await supabase.storage.from(BG_BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" });
+  if (error) throw error;
+  return path;
+}
+
+async function removeBgImage(path) {
+  if (!path) return;
+  try { await supabase.storage.from(BG_BUCKET).remove([path]); } catch (e) { /* ลบไฟล์เก่าไม่สำเร็จไม่เป็นไร */ }
+}
+
+function BackgroundModal({ current, currentUrl, theme, onClose, onSaved }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [removeImg, setRemoveImg] = useState(false);
+  const [dim, setDim] = useState(current && typeof current.dim === "number" ? current.dim : 50);
+  const [card, setCard] = useState(current && typeof current.card === "number" ? current.card : 92);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!file) { setPreview(null); return undefined; }
+    const u = URL.createObjectURL(file);
+    setPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+
+  const shownUrl = preview || (!removeImg ? currentUrl : "");
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    let uploaded = null;
+    try {
+      let path = removeImg ? null : (current && current.path) || null;
+      if (file) { uploaded = await uploadBgImage(file); path = uploaded; }
+      const { error: e } = await supabase.from("app_settings").upsert(
+        { key: "background", value: { path, dim, card }, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (e) throw e;
+      const old = current && current.path;
+      if (old && old !== path) await removeBgImage(old);
+      await onSaved();
+      onClose();
+    } catch (err) {
+      if (uploaded) await removeBgImage(uploaded);
+      const msg = String((err && err.message) || "");
+      setError(/app_settings|schema cache|bucket|relation/i.test(msg)
+        ? "ฐานข้อมูลยังไม่พร้อม กรุณารัน migration_v11.sql ใน Supabase ก่อน"
+        : (msg || "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalShell title="ตกแต่งพื้นหลังเว็บ" onClose={onClose} width={600}>
+      <div className="flex flex-col gap-4">
+        {/* ตัวอย่าง */}
+        <div style={{ position: "relative", height: 170, borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)", background: "var(--surface-2)" }}>
+          {shownUrl ? (
+            <>
+              <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${shownUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              <div style={{ position: "absolute", inset: 0, background: theme.bg, opacity: dim / 100 }} />
+              <div style={{ position: "absolute", left: 22, right: 22, top: 26, bottom: 22, borderRadius: 12, background: hexA(theme.surface, card / 100), border: `1px solid ${theme.border}`, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>ตัวอย่างการ์ดข้อมูล</div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>พื้นหลังที่ปรับแล้วจะเป็นแบบนี้ ลองเลื่อนแถบด้านล่างดู</div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center" style={{ height: "100%", fontSize: 13, color: "var(--text-muted)" }}>ยังไม่มีรูปพื้นหลัง (ใช้สีพื้นเรียบตามเดิม)</div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="rounded-lg px-4 py-2" style={{ background: "var(--accent-frost)", color: "#FFFFFF", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            {shownUrl ? "เปลี่ยนรูป" : "เลือกรูปพื้นหลัง"}
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) { setFile(f); setRemoveImg(false); } e.target.value = ""; }} />
+          </label>
+          {shownUrl && (
+            <button type="button" onClick={() => { setFile(null); setRemoveImg(true); }} className="rounded-lg px-4 py-2" style={{ background: "transparent", border: "1px solid #DC262655", color: "#DC2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              ลบรูปพื้นหลัง
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between"><span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>ความเข้มของฉากหลัง (ยิ่งมากยิ่งอ่านตัวหนังสือง่าย)</span><b style={{ fontSize: 12, color: "var(--text)" }}>{dim}%</b></div>
+          <input type="range" min="0" max="90" step="5" value={dim} onChange={(e) => setDim(Number(e.target.value))} style={{ width: "100%", accentColor: "#0E8FA0" }} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between"><span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>ความทึบของการ์ด (น้อย = เห็นรูปทะลุการ์ดมากขึ้น)</span><b style={{ fontSize: 12, color: "var(--text)" }}>{card}%</b></div>
+          <input type="range" min="60" max="100" step="2" value={card} onChange={(e) => setCard(Number(e.target.value))} style={{ width: "100%", accentColor: "#0E8FA0" }} />
+        </div>
+
+        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>รูปจะถูกย่อขนาดอัตโนมัติ และ<b>มีผลกับผู้ใช้ทุกคน</b>ที่เปิดเว็บนี้ เหมาะกับรูปแนวนอน เช่น ภาพรถบรรทุก ลานจอด หรือโลโก้บริษัททำเป็นลวดลาย</div>
+
+        {error && <div style={{ fontSize: 12, color: "#DC2626", background: "rgba(220,38,38,0.1)", border: "1px solid #DC262655", borderRadius: 8, padding: "8px 10px" }}>{error}</div>}
+
+        <div className="flex items-center justify-end gap-2" style={{ position: "sticky", bottom: 0, background: "var(--surface-solid, var(--surface))", paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+          <button type="button" onClick={onClose} style={{ ...inputStyle, width: "auto", padding: "10px 18px", cursor: "pointer" }}>ยกเลิก</button>
+          <button type="button" onClick={save} disabled={saving} style={{ background: "var(--accent-frost)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 26px", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------------------------------------
    APP SHELL
 ---------------------------------------------------------------- */
 
@@ -3064,6 +3189,9 @@ export default function FleetApp({ user }) {
   }
 
   const theme = dark ? THEMES.dark : THEMES.light;
+  const bgUrl = bgSetting && bgSetting.path ? supabase.storage.from(BG_BUCKET).getPublicUrl(bgSetting.path).data.publicUrl : "";
+  const bgDim = bgSetting && typeof bgSetting.dim === "number" ? bgSetting.dim : 50;
+  const bgCard = bgSetting && typeof bgSetting.card === "number" ? bgSetting.card : 92;
   const [focusPlate, setFocusPlate] = useState(null);
 
   function handleTabClick(key) {
@@ -3079,11 +3207,23 @@ export default function FleetApp({ user }) {
   const [drivers, setDrivers] = useState([]);
   const [fuelLogs, setFuelLogs] = useState([]);
   const [prs, setPrs] = useState([]);
+  const [bgSetting, setBgSetting] = useState(null);
+  const [showBg, setShowBg] = useState(false);
   const [prError, setPrError] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => { loadAll(true); }, []);
+  useEffect(() => { loadBg(); }, []);
+
+  // อ่านค่าพื้นหลัง (ถ้ายังไม่ได้รัน SQL หรือยังไม่เคยตั้งค่า ก็แค่ไม่แสดงรูป ไม่กระทบส่วนอื่น)
+  async function loadBg() {
+    try {
+      const { data, error } = await supabase.from("app_settings").select("value").eq("key", "background").maybeSingle();
+      if (!error && data && data.value) setBgSetting(data.value);
+      else if (!error) setBgSetting(null);
+    } catch (e) { /* ignore */ }
+  }
 
   // initial=true แสดงหน้าโหลดเต็มจอเฉพาะครั้งแรก ส่วนหลังบันทึก/แก้ไข รีเฟรชข้อมูลเงียบๆ
   async function loadAll(initial = false) {
@@ -3223,10 +3363,18 @@ export default function FleetApp({ user }) {
 
   return (
     <div style={{
-      "--bg": theme.bg, "--surface": theme.surface, "--surface-2": theme.surface2, "--border": theme.border,
+      "--bg": theme.bg, "--surface": bgUrl ? hexA(theme.surface, bgCard / 100) : theme.surface, "--surface-solid": theme.surface,
+      "--surface-2": theme.surface2, "--border": theme.border, "--card-blur": bgUrl ? "blur(8px)" : "none",
       "--text": theme.text, "--text-muted": theme.textMuted, "--accent-frost": theme.accent,
       background: "var(--bg)", minHeight: "100vh", fontFamily: "'Inter', sans-serif", transition: "background .2s ease",
+      position: "relative", isolation: "isolate",
     }}>
+      {bgUrl && (
+        <>
+          <div aria-hidden="true" style={{ position: "fixed", inset: 0, zIndex: -1, backgroundImage: `url(${bgUrl})`, backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
+          <div aria-hidden="true" style={{ position: "fixed", inset: 0, zIndex: -1, background: theme.bg, opacity: bgDim / 100, pointerEvents: "none" }} />
+        </>
+      )}
       <header style={{ borderBottom: "1px solid var(--border)", background: theme.headerBg, position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(6px)" }}>
         <div className="mx-auto px-5 py-4 flex items-center justify-between flex-wrap gap-3" style={{ maxWidth: 1720 }}>
           <div className="flex items-center gap-3">
@@ -3252,6 +3400,9 @@ export default function FleetApp({ user }) {
           </nav>
           <div className="flex items-center gap-3">
             <span style={{ fontSize: 12, color: "var(--text-muted)" }} className="hidden md:inline">{user?.email}</span>
+            <button onClick={() => setShowBg(true)} title="ตกแต่งพื้นหลังเว็บ" className="flex items-center justify-center rounded-lg" style={{ width: 36, height: 36, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+              <Palette size={16} />
+            </button>
             <button onClick={toggleTheme} title={dark ? "สลับเป็นโหมดสว่าง" : "สลับเป็นโหมดมืด"} className="flex items-center justify-center rounded-lg" style={{ width: 36, height: 36, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
               {dark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
@@ -3294,6 +3445,10 @@ export default function FleetApp({ user }) {
       <footer className="mx-auto px-5 py-6" style={{ maxWidth: 1720, color: "var(--text-muted)", fontSize: 12 }}>
         ข้อมูลบันทึกลงฐานข้อมูลจริง ใช้งานพร้อมกันได้หลายคน · CPRAM Fleet Management
       </footer>
+
+      {showBg && (
+        <BackgroundModal current={bgSetting} currentUrl={bgUrl} theme={theme} onClose={() => setShowBg(false)} onSaved={loadBg} />
+      )}
     </div>
   );
 }
